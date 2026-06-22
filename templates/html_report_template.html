@@ -111,9 +111,157 @@ body {
 .footer {
   text-align: center; padding: 20px; color: #aaa; font-size: 12px;
 }
+
+/* ===== 移动端顶部栏（默认隐藏，手机端显示）===== */
+.mobile-top-bar {
+  display: none;
+}
+
+/* ===== 表格滚动提示（默认隐藏，手机端显示）===== */
+.table-scroll-hint {
+  display: none;
+}
+
+/* ===== 平板端适配（481px ~ 768px）===== */
+@media (max-width: 768px) {
+  .page { padding: 16px; }
+  .page-header { padding: 16px 20px; margin-bottom: 16px; }
+  .page-header h1 { font-size: 20px; }
+  .card { padding: 18px; }
+  .card-title { font-size: 16px; }
+  .chart-container { padding: 18px; }
+  .chart-container canvas { max-height: 300px; }
+  .stats-grid { gap: 12px; }
+  .stat-card { padding: 16px; }
+  .stat-value { font-size: 28px; }
+  .nav { padding: 0 16px; }
+  .nav-brand { font-size: 16px; margin-right: 16px; }
+  .nav-tab { padding: 6px 14px; font-size: 13px; }
+  .filter-bar { gap: 8px; }
+}
+
+/* ===== 手机端适配（≤480px）===== */
+@media (max-width: 480px) {
+  /* --- 移动端顶部栏 --- */
+  .mobile-top-bar {
+    display: flex;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+
+  /* --- 导航改为底部固定 tab bar --- */
+  .nav {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0; right: 0;
+    height: 56px;
+    padding: 0;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    border-radius: 0;
+  }
+  .nav-brand { display: none; }
+  .nav-tabs {
+    flex: 1;
+    display: flex;
+    gap: 0;
+    height: 100%;
+  }
+  .nav-tab {
+    flex: 1;
+    padding: 8px 4px;
+    font-size: 13px;
+    border-radius: 0;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+  .nav-tab:hover { background: transparent; }
+  .nav-tab.active { background: #667eea; color: #fff; }
+
+  /* --- 内容区适配 --- */
+  .content-wrapper {
+    margin-top: 44px;
+    padding-bottom: 70px;
+  }
+  .page { padding: 12px; }
+  .page-header {
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    border-radius: 10px;
+  }
+  .page-header h1 { font-size: 18px; margin-bottom: 4px; }
+  .page-header .subtitle { font-size: 12px; }
+
+  /* --- 卡片 --- */
+  .card { padding: 14px; border-radius: 10px; margin-bottom: 14px; }
+  .card-title { font-size: 15px; margin-bottom: 12px; }
+
+  /* --- 统计卡片网格 --- */
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .stat-card { padding: 14px 10px; border-radius: 10px; }
+  .stat-value { font-size: 24px; }
+  .stat-label { font-size: 12px; }
+
+  /* --- 图表 --- */
+  .chart-container { padding: 14px; border-radius: 10px; margin-bottom: 14px; }
+  .chart-container canvas { max-height: 260px; }
+
+  /* --- 纯CSS柱状图 --- */
+  .css-bar-chart { gap: 8px; }
+  .css-bar-label { width: 80px; font-size: 12px; }
+  .css-bar-value { width: 40px; font-size: 12px; }
+  .css-bar-track { height: 20px; }
+
+  /* --- 表格 --- */
+  .data-table { font-size: 13px; }
+  .data-table th { padding: 6px 8px; }
+  .data-table td { padding: 6px 8px; }
+
+  /* --- 表格滚动提示（手机端显示）--- */
+  .table-scroll-hint {
+    display: block;
+    text-align: center;
+    padding: 6px;
+    color: #aaa;
+    font-size: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  /* --- 筛选栏 --- */
+  .filter-bar { gap: 6px; }
+  .filter-bar select, .filter-bar input {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+  .filter-label { font-size: 12px; }
+
+  /* --- 页脚（留出底部导航空间）--- */
+  .footer { padding: 16px 12px 10px; font-size: 11px; }
+}
 </style>
 </head>
 <body>
+
+<!-- 移动端顶部栏（仅手机显示，缩略品牌标题） -->
+<div class="mobile-top-bar">校区分析报告</div>
 
 <!-- 导航栏 -->
 <nav class="nav">
@@ -142,6 +290,7 @@ body {
       <select id="filter-risk" onchange="applyFilters()"><option value="">全部风险</option></select>
       <input type="text" id="filter-name" placeholder="搜索姓名..." oninput="applyFilters()">
     </div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
     <div style="overflow-x:auto;">
       <table class="data-table" id="student-table">
         <thead id="table-head"></thead>
@@ -194,6 +343,7 @@ body {
       <span class="filter-label">按推荐课程筛选：</span>
       <select id="filter-recommend" onchange="filterRecommend()"><option value="">全部</option></select>
     </div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
     <div style="overflow-x:auto;">
       <table class="data-table" id="recommend-table">
         <thead><tr><th>姓名</th><th>年级</th><th>支付力</th><th>推荐课程</th><th>推荐理由</th><th>跟进优先级</th></tr></thead>
@@ -226,6 +376,7 @@ function showPage(pageId) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(pageId).classList.add('active');
   event.target.classList.add('active');
+  window.scrollTo(0, 0);
 }
 
 // ===== 标签样式 =====
