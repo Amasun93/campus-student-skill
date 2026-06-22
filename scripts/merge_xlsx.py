@@ -3,10 +3,12 @@
 校区学员情况管理 Skill - 汇总端合并脚本
 
 功能：读取多份个人学员表.xlsx → 按姓名（完整含姓）合并 → 重名用年级对齐
-     → A基础标识合并去重 → B/C/D冲突检测+A+C双保留 → 输出汇总表.xlsx
+     → A基础标识合并去重 → B1/B2/C/D1/D2冲突检测+A+C双保留 → 输出汇总表.xlsx
      含4个sheet：学员汇总/冲突清单/变更记录/采集完成率
 
 支持增量更新模式：识别新增学生追加 + 已存在学生字段变更更新。
+
+v1.6.0: 新增B2销售漏斗/D2学情履历/家庭背景(老师补充)字段合并，汇总表52列。
 
 用法：
     # 全量合并
@@ -26,10 +28,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
-    A_FIELDS, B_FIELDS, C_FIELDS, D_FIELDS, E_FIELDS,
+    A_FIELDS, B_FIELDS, B2_FIELDS, C_FIELDS, D_FIELDS, D2_FIELDS,
+    E_FIELDS, CROSS_FIELDS,
     SUMMARY_COLUMNS, CONFLICT_COLUMNS, CHANGELOG_COLUMNS, COMPLETION_COLUMNS,
     get_excel_styles, apply_header_style, apply_tag_conditional_format,
-    format_conflict_cell, create_conflict_record, detect_conflict,
+    format_conflict_cell, format_three_way_conflict,
+    create_conflict_record, detect_conflict,
     get_match_key, find_student_in_list, calculate_completion,
     get_timestamp, print_script_result,
 )
@@ -39,6 +43,7 @@ def read_personal_xlsx(file_path: str) -> List[Dict[str, Any]]:
     """读取个人学员表.xlsx，解析为学生记录列表。
 
     自动检测是顾问版还是老师版（根据列名判断）。
+    顾问版解析B2销售漏斗字段，老师版解析D2学情履历字段+B_cross_teacher。
 
     Args:
         file_path: xlsx文件路径
@@ -91,23 +96,40 @@ def read_personal_xlsx(file_path: str) -> List[Dict[str, Any]]:
             "年龄": row_dict.get("年龄", ""),
             "所在校区": row_dict.get("所在校区", row_dict.get("校区", "")),
             "家庭背景": {},
+            "销售漏斗": {},
             "在校情况": {},
             "课程成果": {},
+            "学情履历": {},
+            "家庭背景_老师补充": "",
             "采集人角色": role,
             "采集来源": os.path.basename(file_path),
         }
 
-        # 填充B字段（顾问录）
+        # 填充B1字段（顾问录）
         for f in B_FIELDS:
             record["家庭背景"][f] = row_dict.get(f, "")
+
+        # 填充B2字段（顾问录）
+        for f in B2_FIELDS:
+            record["销售漏斗"][f] = row_dict.get(f, "")
 
         # 填充C字段（老师录）
         for f in C_FIELDS:
             record["在校情况"][f] = row_dict.get(f, "")
 
-        # 填充D字段（老师录）
+        # 填充D1字段（老师录）
         for f in D_FIELDS:
             record["课程成果"][f] = row_dict.get(f, "")
+
+        # 填充D2字段（老师录）
+        for f in D2_FIELDS:
+            record["学情履历"][f] = row_dict.get(f, "")
+
+        # 填充B_cross_teacher（老师版有）
+        record["家庭背景_老师补充"] = row_dict.get("家庭背景(老师补充)", "")
+
+        # E学员细节备注
+        record["学员细节备注"] = row_dict.get("学员细节备注", "")
 
         records.append(record)
 
@@ -117,7 +139,8 @@ def read_personal_xlsx(file_path: str) -> List[Dict[str, Any]]:
 def merge_records(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """合并所有学生记录，按姓名+年级对齐。
 
-    A基础标识合并去重，B/C/D字段冲突检测+A+C双保留。
+    A基础标识合并去重，B1/B2/C/D1/D2字段冲突检测+A+C双保留。
+    B_cross_teacher(家庭背景老师补充)直接填入，不做冲突检测。
 
     Args:
         all_records: 所有来源的学生记录列表
@@ -144,8 +167,11 @@ def merge_records(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
                 "年级": grade,
                 "年龄": record.get("年龄", ""),
                 "家庭背景": dict(record.get("家庭背景", {})),
+                "销售漏斗": dict(record.get("销售漏斗", {})),
                 "在校情况": dict(record.get("在校情况", {})),
                 "课程成果": dict(record.get("课程成果", {})),
+                "学情履历": dict(record.get("学情履历", {})),
+                "家庭背景_老师补充": record.get("家庭背景_老师补充", ""),
                 "学员细节备注": record.get("学员细节备注", ""),
                 "冲突标注": "",
                 "来源角色": [record.get("采集人角色", "")],
@@ -176,11 +202,22 @@ def merge_records(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
                     # 拼接，标注来源
                     existing["学员细节备注"] = f"[{role}补充] {new_detail} | {old_detail}"
 
-            # 合并B/C/D字段，检测冲突
+            # 合并B_cross_teacher（老师补充的家庭背景，直接填入，不做冲突检测）
+            new_cross = (record.get("家庭背景_老师补充", "") or "").strip()
+            if new_cross:
+                old_cross = (existing.get("家庭背景_老师补充", "") or "").strip()
+                if not old_cross:
+                    existing["家庭背景_老师补充"] = new_cross
+                elif new_cross not in old_cross:
+                    existing["家庭背景_老师补充"] = f"{old_cross} | {new_cross}"
+
+            # 合并B1/B2/C/D1/D2字段，检测冲突
             for group_name, fields, source_data in [
                 ("家庭背景", B_FIELDS, record.get("家庭背景", {})),
+                ("销售漏斗", B2_FIELDS, record.get("销售漏斗", {})),
                 ("在校情况", C_FIELDS, record.get("在校情况", {})),
                 ("课程成果", D_FIELDS, record.get("课程成果", {})),
+                ("学情履历", D2_FIELDS, record.get("学情履历", {})),
             ]:
                 for field in fields:
                     new_val = (source_data.get(field, "") or "").strip()
@@ -346,7 +383,12 @@ def write_summary_xlsx(merged_students: List[Dict[str, Any]],
 
 
 def flatten_merged_student(student: Dict[str, Any]) -> Dict[str, str]:
-    """将合并后的学生记录扁平化为汇总表列对应的字典。
+    """将合并后的学生记录扁平化为汇总表列对应的字典（54列）。
+
+    按SUMMARY_COLUMNS顺序输出，包括：
+    - A基础标识(4) + B1家庭背景(9) + B2销售漏斗(6进汇总) + C在校情况(6)
+    + D1课程成果(5) + D2学情履历(8进汇总) + E(1) + 三路信源(1)
+    + 冲突标注(1) + AI补齐(7) + 决策标签(5) + 学情画像(1)
 
     Args:
         student: 合并后的学生记录
@@ -355,37 +397,68 @@ def flatten_merged_student(student: Dict[str, Any]) -> Dict[str, str]:
         列名→值的字典
     """
     flat: Dict[str, str] = {}
+
+    # A基础标识（4列）
     flat["校区"] = student.get("校区", "")
     flat["姓名"] = student.get("姓名", "")
     flat["年级"] = student.get("年级", "")
     flat["年龄"] = student.get("年龄", "")
-    flat["冲突标注"] = student.get("冲突标注", "")
 
+    # B1家庭背景（9列）
     family = student.get("家庭背景", {})
     for f in B_FIELDS:
         flat[f] = family.get(f, "") if family else ""
 
+    # B2销售漏斗（6列进汇总；最初兴趣点/介绍过的产品不进汇总）
+    funnel = student.get("销售漏斗", {})
+    b2_summary_fields = ["客户来源", "对接次数", "累计跟进时长", "当前阶段", "堵点", "顾问复盘"]
+    for f in b2_summary_fields:
+        flat[f] = funnel.get(f, "") if funnel else ""
+
+    # C在校情况（6列）
     school = student.get("在校情况", {})
     for f in C_FIELDS:
         flat[f] = school.get(f, "") if school else ""
 
+    # D1课程成果（5列）
     course = student.get("课程成果", {})
     for f in D_FIELDS:
         flat[f] = course.get(f, "") if course else ""
 
-    # AI补齐字段（合并阶段为空，后续AI补齐场景填入）
+    # D2学情履历（8列进汇总；入学时年级/当前年级/过往奖项/特长兴趣/学生状态观察不进汇总）
+    diary = student.get("学情履历", {})
+    d2_summary_fields = ["入学时间", "在读时长", "等级考", "白名单比赛", "老师侧支付力",
+                         "家长关注度", "家长新期待", "老师复盘"]
+    for f in d2_summary_fields:
+        flat[f] = diary.get(f, "") if diary else ""
+
+    # E学员细节备注（1列）
+    flat["学员细节备注"] = student.get("学员细节备注", "")
+
+    # 三路信源（1列）
+    flat["家庭背景(老师补充)"] = student.get("家庭背景_老师补充", "")
+
+    # 合并生成（1列）
+    flat["冲突标注"] = student.get("冲突标注", "")
+
+    # AI补齐字段（7列，合并阶段为空，后续AI补齐场景填入）
     flat["学校层次(科技特色)"] = ""
+    flat["科技特色详情"] = ""
     flat["小区房价段"] = ""
     flat["住户画像"] = ""
     flat["周边竞品"] = ""
     flat["家庭消费力"] = ""
+    flat["推荐话术素材"] = ""
 
-    # 决策标签字段（合并阶段为空，后续标签推算场景填入）
+    # 决策标签字段（5列，合并阶段为空，后续标签推算场景填入）
     flat["支付力"] = ""
     flat["续费风险"] = ""
     flat["转介绍潜力"] = ""
     flat["跟进优先级"] = ""
     flat["推荐产品方向"] = ""
+
+    # 学情画像（1列，留空，write_tags.py后续填充）
+    flat["学情画像"] = ""
 
     return flat
 
@@ -396,6 +469,7 @@ def incremental_merge(new_records: List[Dict[str, Any]],
     """增量更新：将新记录合并到已有汇总表中。
 
     识别新增学生追加，已存在学生字段变更更新（旧值标注）。
+    支持B1/B2/C/D1/D2全部字段组的变更检测。
 
     Args:
         new_records: 新的个人表记录
@@ -428,8 +502,12 @@ def incremental_merge(new_records: List[Dict[str, Any]],
                 "年级": grade,
                 "年龄": new_rec.get("年龄", ""),
                 "家庭背景": dict(new_rec.get("家庭背景", {})),
+                "销售漏斗": dict(new_rec.get("销售漏斗", {})),
                 "在校情况": dict(new_rec.get("在校情况", {})),
                 "课程成果": dict(new_rec.get("课程成果", {})),
+                "学情履历": dict(new_rec.get("学情履历", {})),
+                "家庭背景_老师补充": new_rec.get("家庭背景_老师补充", ""),
+                "学员细节备注": new_rec.get("学员细节备注", ""),
                 "冲突标注": "",
                 "来源角色": [new_rec.get("采集人角色", "")],
                 "来源文件": [new_rec.get("采集来源", "")],
@@ -451,8 +529,10 @@ def incremental_merge(new_records: List[Dict[str, Any]],
 
             for group_name, fields, source_data in [
                 ("家庭背景", B_FIELDS, new_rec.get("家庭背景", {})),
+                ("销售漏斗", B2_FIELDS, new_rec.get("销售漏斗", {})),
                 ("在校情况", C_FIELDS, new_rec.get("在校情况", {})),
                 ("课程成果", D_FIELDS, new_rec.get("课程成果", {})),
+                ("学情履历", D2_FIELDS, new_rec.get("学情履历", {})),
             ]:
                 for field in fields:
                     new_val = (source_data.get(field, "") or "").strip()
@@ -484,11 +564,38 @@ def incremental_merge(new_records: List[Dict[str, Any]],
                             "变更来源": new_rec.get("采集来源", ""),
                         })
 
+            # B_cross_teacher 变更检测
+            new_cross = (new_rec.get("家庭背景_老师补充", "") or "").strip()
+            old_cross = (existing.get("家庭背景_老师补充", "") or "").strip()
+            if new_cross and new_cross != old_cross:
+                if not old_cross:
+                    existing["家庭背景_老师补充"] = new_cross
+                    changelogs.append({
+                        "姓名": name,
+                        "变更时间": get_timestamp(),
+                        "变更字段": "家庭背景(老师补充)",
+                        "旧值": "(空)",
+                        "新值": new_cross,
+                        "变更来源": new_rec.get("采集来源", ""),
+                    })
+                else:
+                    existing["家庭背景_老师补充"] = f"{old_cross} | {new_cross}"
+                    changelogs.append({
+                        "姓名": name,
+                        "变更时间": get_timestamp(),
+                        "变更字段": "家庭背景(老师补充)",
+                        "旧值": old_cross,
+                        "新值": new_cross,
+                        "变更来源": new_rec.get("采集来源", ""),
+                    })
+
     return updated, conflicts, changelogs
 
 
 def read_summary_xlsx(file_path: str) -> List[Dict[str, Any]]:
     """读取已有汇总表.xlsx的学生列表（用于增量更新）。
+
+    支持读取B1/B2/C/D1/D2全部字段组及家庭背景(老师补充)。
 
     Args:
         file_path: 汇总表xlsx路径
@@ -522,8 +629,12 @@ def read_summary_xlsx(file_path: str) -> List[Dict[str, Any]]:
             "年级": row_dict.get("年级", ""),
             "年龄": row_dict.get("年龄", ""),
             "家庭背景": {},
+            "销售漏斗": {},
             "在校情况": {},
             "课程成果": {},
+            "学情履历": {},
+            "家庭背景_老师补充": row_dict.get("家庭背景(老师补充)", ""),
+            "学员细节备注": row_dict.get("学员细节备注", ""),
             "冲突标注": row_dict.get("冲突标注", ""),
             "来源角色": [],
             "来源文件": [],
@@ -531,10 +642,14 @@ def read_summary_xlsx(file_path: str) -> List[Dict[str, Any]]:
 
         for f in B_FIELDS:
             student["家庭背景"][f] = row_dict.get(f, "")
+        for f in B2_FIELDS:
+            student["销售漏斗"][f] = row_dict.get(f, "")
         for f in C_FIELDS:
             student["在校情况"][f] = row_dict.get(f, "")
         for f in D_FIELDS:
             student["课程成果"][f] = row_dict.get(f, "")
+        for f in D2_FIELDS:
+            student["学情履历"][f] = row_dict.get(f, "")
 
         students.append(student)
 

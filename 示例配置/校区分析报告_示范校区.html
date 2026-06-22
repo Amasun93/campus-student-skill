@@ -299,6 +299,42 @@ body {
     </div>
     <div id="table-empty" style="display:none;text-align:center;padding:40px;color:#aaa;">暂无数据</div>
   </div>
+
+  <!-- 新增：按学情画像分组推荐 -->
+  <div class="card">
+    <div class="card-title">🎯 按学情画像分组推荐</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="profileRecommendTable">
+        <thead><tr><th>学情画像</th><th>推荐课程方向</th><th>学员数</th><th>学员名单</th></tr></thead>
+        <tbody id="profileRecommendBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 新增：按等级考路径推荐 -->
+  <div class="card">
+    <div class="card-title">📝 按等级考路径推荐</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="examPathTable">
+        <thead><tr><th>等级考级别</th><th>推荐方向</th><th>学员数</th></tr></thead>
+        <tbody id="examPathBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 新增：按家长关注度推荐 -->
+  <div class="card">
+    <div class="card-title">👁️ 按家长关注度推荐</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="attentionTable">
+        <thead><tr><th>家长关注度</th><th>推荐方向</th><th>学员数</th></tr></thead>
+        <tbody id="attentionBody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- ===== 页2：校区分析报告 ===== -->
@@ -322,6 +358,59 @@ body {
     <div class="card-title">决策标签分布</div>
     <canvas id="chart-tags"></canvas>
     <div class="css-bar-chart" id="css-tags" style="display:none;"></div>
+  </div>
+
+  <!-- 新增：渠道来源分布 -->
+  <div class="card">
+    <div class="card-title">📊 客户来源分布</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <canvas id="channelChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="channelBarChart"></div>
+  </div>
+
+  <!-- 新增：新签阶段漏斗 -->
+  <div class="card">
+    <div class="card-title">🔄 新签阶段漏斗</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <canvas id="funnelChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="funnelBarChart"></div>
+  </div>
+
+  <!-- 新增：学情画像标签分布 -->
+  <div class="card">
+    <div class="card-title">🎯 学情画像标签分布</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <canvas id="profileChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="profileBarChart"></div>
+  </div>
+
+  <!-- 新增：流失风险预警列表 -->
+  <div class="card">
+    <div class="card-title">⚠️ 流失风险预警</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="riskTable">
+        <thead><tr><th>姓名</th><th>年级</th><th>校区</th><th>学情画像</th></tr></thead>
+        <tbody id="riskTableBody"></tbody>
+      </table>
+    </div>
+    <div id="riskEmpty" style="display:none;text-align:center;padding:20px;color:#aaa;">暂无流失风险学员</div>
+  </div>
+
+  <!-- 新增：高净值待挖列表 -->
+  <div class="card">
+    <div class="card-title">💎 高净值待挖学员</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="potentialTable">
+        <thead><tr><th>姓名</th><th>年级</th><th>校区</th><th>学情画像</th><th>老师侧支付力</th></tr></thead>
+        <tbody id="potentialTableBody"></tbody>
+      </table>
+    </div>
+    <div id="potentialEmpty" style="display:none;text-align:center;padding:20px;color:#aaa;">暂无高净值待挖学员</div>
   </div>
 </div>
 
@@ -364,289 +453,416 @@ body {
 // ===== 报告数据注入点 =====
 // generate_html_report.py 会将数据注入到 REPORT_DATA 变量
 const REPORT_DATA = {
-  "生成时间": "2026-06-22T21:24:21",
+  "生成时间": "2026-06-23T01:38:33",
   "校区": "浦东示范校区",
   "学员列表": [
     {
       "姓名": "张小明",
       "年级": "4年级",
-      "校区": "浦东示范校区",
+      "校区": "示例校区",
       "居住小区": "翠湖花园",
-      "学校层次": "区科创特色校",
+      "学校层次": "",
       "支付力": "高",
-      "续费风险": "低",
-      "转介绍潜力": "高",
-      "跟进优先级": 5,
-      "推荐方向": "竞赛冲刺班",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "李思琪",
-      "年级": "5年级",
-      "校区": "浦东示范校区",
-      "居住小区": "汤臣豪园",
-      "学校层次": "市科创特色校",
-      "支付力": "高",
-      "续费风险": "低",
-      "转介绍潜力": "高",
-      "跟进优先级": 5,
-      "推荐方向": "竞赛冲刺班",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "王浩然",
-      "年级": "3年级",
-      "校区": "浦东示范校区",
-      "居住小区": "仁恒滨江",
-      "学校层次": "普通校",
-      "支付力": "高",
-      "续费风险": "中",
-      "转介绍潜力": "中",
-      "跟进优先级": 3,
-      "推荐方向": "机器人编程",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "陈雨萱",
-      "年级": "2年级",
-      "校区": "浦东示范校区",
-      "居住小区": "保利锦上",
-      "学校层次": "普通校",
-      "支付力": "中",
-      "续费风险": "中",
-      "转介绍潜力": "中",
-      "跟进优先级": 3,
-      "推荐方向": "Scratch基础",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "刘子轩",
-      "年级": "6年级",
-      "校区": "浦东示范校区",
-      "居住小区": "中粮海景",
-      "学校层次": "市科创特色校",
-      "支付力": "高",
-      "续费风险": "低",
-      "转介绍潜力": "高",
-      "跟进优先级": 5,
-      "推荐方向": "竞赛冲刺班",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "赵欣怡",
-      "年级": "4年级",
-      "校区": "浦东示范校区",
-      "居住小区": "金桥花园",
-      "学校层次": "区科创特色校",
-      "支付力": "中",
       "续费风险": "低",
       "转介绍潜力": "高",
       "跟进优先级": 4,
-      "推荐方向": "Python入门",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "孙浩宇",
-      "年级": "5年级",
-      "校区": "浦东示范校区",
-      "居住小区": "老西门新苑",
-      "学校层次": "普通校",
-      "支付力": "中",
-      "续费风险": "高",
-      "转介绍潜力": "低",
-      "跟进优先级": 2,
-      "推荐方向": "Scratch基础",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "周诗涵",
-      "年级": "3年级",
-      "校区": "浦东示范校区",
-      "居住小区": "大华锦绣",
-      "学校层次": "区科创特色校",
-      "支付力": "中",
-      "续费风险": "低",
-      "转介绍潜力": "高",
-      "跟进优先级": 4,
-      "推荐方向": "Python入门",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "吴俊杰",
-      "年级": "6年级",
-      "校区": "浦东示范校区",
-      "居住小区": "世茂滨江",
-      "学校层次": "市科创特色校",
-      "支付力": "高",
-      "续费风险": "低",
-      "转介绍潜力": "高",
-      "跟进优先级": 5,
-      "推荐方向": "竞赛冲刺班",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "郑梓萱",
-      "年级": "2年级",
-      "校区": "浦东示范校区",
-      "居住小区": "陆家嘴花园",
-      "学校层次": "普通校",
-      "支付力": "中",
-      "续费风险": "高",
-      "转介绍潜力": "中",
-      "跟进优先级": 2,
-      "推荐方向": "Scratch基础",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "钱梓豪",
-      "年级": "4年级",
-      "校区": "浦东示范校区",
-      "居住小区": "老沪闵路小区",
-      "学校层次": "普通校",
-      "支付力": "低",
-      "续费风险": "高",
-      "转介绍潜力": "低",
-      "跟进优先级": 1,
-      "推荐方向": "Scratch基础",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "冯雨桐",
-      "年级": "5年级",
-      "校区": "浦东示范校区",
-      "居住小区": "锦绣华庭",
-      "学校层次": "区科创特色校",
-      "支付力": "高",
-      "续费风险": "低",
-      "转介绍潜力": "高",
-      "跟进优先级": 5,
-      "推荐方向": "竞赛冲刺班",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "蒋宇辰",
-      "年级": "3年级",
-      "校区": "浦东示范校区",
-      "居住小区": "金杨新村",
-      "学校层次": "普通校",
-      "支付力": "中",
-      "续费风险": "低",
-      "转介绍潜力": "中",
-      "跟进优先级": 3,
-      "推荐方向": "Scratch基础",
-      "推荐理由": ""
-    },
-    {
-      "姓名": "韩梦瑶",
-      "年级": "4年级",
-      "校区": "浦东示范校区",
-      "居住小区": "仁恒森兰雅苑",
-      "学校层次": "市科创特色校",
-      "支付力": "高",
-      "续费风险": "低",
-      "转介绍潜力": "高",
-      "跟进优先级": 5,
       "推荐方向": "AI编程进阶营",
-      "推荐理由": ""
+      "推荐理由": "",
+      "客户来源": "大众点评",
+      "当前阶段": "新签挖需",
+      "学情画像": "高净值待挖型、谨慎观望型",
+      "入学时间": "2024-09",
+      "在读时长": "1年9个月",
+      "等级考": "机器人1级",
+      "白名单比赛": "",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:快|进班:偶尔进|疲态:无"
     },
     {
-      "姓名": "杨子涵",
-      "年级": "6年级",
-      "校区": "浦东示范校区",
-      "居住小区": "老闵行小区",
-      "学校层次": "普通校",
+      "姓名": "李小红",
+      "年级": "5年级",
+      "校区": "示例校区",
+      "居住小区": "阳光丽景",
+      "学校层次": "",
+      "支付力": "中",
+      "续费风险": "低",
+      "转介绍潜力": "中",
+      "跟进优先级": 2,
+      "推荐方向": "Python入门",
+      "推荐理由": "",
+      "客户来源": "转介绍",
+      "当前阶段": "在读更新",
+      "学情画像": "竞赛冲刺型、续费稳定型",
+      "入学时间": "2024-03",
+      "在读时长": "2年3个月",
+      "等级考": "Python2级",
+      "白名单比赛": "蓝桥杯青少年组2025",
+      "老师侧支付力": "研学",
+      "家长关注度": "群内回复:快|进班:经常进|疲态:无"
+    },
+    {
+      "姓名": "王小刚",
+      "年级": "3年级",
+      "校区": "示例校区",
+      "居住小区": "老城区回迁房",
+      "学校层次": "",
       "支付力": "低",
       "续费风险": "高",
-      "转介绍潜力": "低",
-      "跟进优先级": 1,
+      "转介绍潜力": "中",
+      "跟进优先级": 3,
       "推荐方向": "Scratch基础",
-      "推荐理由": ""
+      "推荐理由": "",
+      "客户来源": "地推",
+      "当前阶段": "诺访",
+      "学情画像": "兴趣探索型、流失风险型",
+      "入学时间": "2026-04",
+      "在读时长": "2个月",
+      "等级考": "未考",
+      "白名单比赛": "",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:慢|进班:不进|疲态:轻度"
+    },
+    {
+      "姓名": "赵小华",
+      "年级": "4年级",
+      "校区": "示例校区",
+      "居住小区": "万科城市花园",
+      "学校层次": "",
+      "支付力": "高",
+      "续费风险": "低",
+      "转介绍潜力": "高",
+      "跟进优先级": 4,
+      "推荐方向": "AI编程进阶营",
+      "推荐理由": "",
+      "客户来源": "小红书",
+      "当前阶段": "新签挖需",
+      "学情画像": "竞赛冲刺型、谨慎观望型",
+      "入学时间": "2024-08",
+      "在读时长": "1年10个月",
+      "等级考": "机器人3级",
+      "白名单比赛": "全国青少年机器人竞赛2025",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:快|进班:经常进|疲态:无"
+    },
+    {
+      "姓名": "钱小亮",
+      "年级": "6年级",
+      "校区": "示例校区",
+      "居住小区": "中海御城",
+      "学校层次": "",
+      "支付力": "中",
+      "续费风险": "低",
+      "转介绍潜力": "高",
+      "跟进优先级": 3,
+      "推荐方向": "Python入门",
+      "推荐理由": "",
+      "客户来源": "公众号",
+      "当前阶段": "在读更新",
+      "学情画像": "竞赛冲刺型、续费稳定型",
+      "入学时间": "2023-09",
+      "在读时长": "2年9个月",
+      "等级考": "Python2级",
+      "白名单比赛": "信息学奥赛CSP-J 2025、蓝桥杯2025",
+      "老师侧支付力": "研学、lab",
+      "家长关注度": "群内回复:快|进班:经常进|疲态:无"
+    },
+    {
+      "姓名": "孙小杰",
+      "年级": "5年级",
+      "校区": "示例校区",
+      "居住小区": "金域蓝湾",
+      "学校层次": "",
+      "支付力": "高",
+      "续费风险": "中",
+      "转介绍潜力": "中",
+      "跟进优先级": 4,
+      "推荐方向": "AI编程进阶营",
+      "推荐理由": "",
+      "客户来源": "转介绍",
+      "当前阶段": "诺访",
+      "学情画像": "科创潜力型、高净值待挖型",
+      "入学时间": "2026-02",
+      "在读时长": "4个月",
+      "等级考": "机器人1级",
+      "白名单比赛": "",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:快|进班:偶尔进|疲态:无"
+    },
+    {
+      "姓名": "周小敏",
+      "年级": "2年级",
+      "校区": "示例校区",
+      "居住小区": "保利春天",
+      "学校层次": "",
+      "支付力": "中",
+      "续费风险": "中",
+      "转介绍潜力": "高",
+      "跟进优先级": 4,
+      "推荐方向": "待配置",
+      "推荐理由": "",
+      "客户来源": "大众点评",
+      "当前阶段": "新签挖需",
+      "学情画像": "兴趣探索型",
+      "入学时间": "2026-04",
+      "在读时长": "2个月",
+      "等级考": "未考",
+      "白名单比赛": "",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:快|进班:偶尔进|疲态:无"
+    },
+    {
+      "姓名": "吴小宇",
+      "年级": "4年级",
+      "校区": "示例校区",
+      "居住小区": "老小区",
+      "学校层次": "",
+      "支付力": "中",
+      "续费风险": "中",
+      "转介绍潜力": "高",
+      "跟进优先级": 4,
+      "推荐方向": "Python入门",
+      "推荐理由": "",
+      "客户来源": "地推",
+      "当前阶段": "新签挖需",
+      "学情画像": "谨慎观望型、基础夯实型",
+      "入学时间": "2026-01",
+      "在读时长": "5个月",
+      "等级考": "机器人1级",
+      "白名单比赛": "",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:慢|进班:不进|疲态:无"
+    },
+    {
+      "姓名": "郑小萱",
+      "年级": "3年级",
+      "校区": "示例校区",
+      "居住小区": "华润橡树湾",
+      "学校层次": "",
+      "支付力": "高",
+      "续费风险": "中",
+      "转介绍潜力": "高",
+      "跟进优先级": 5,
+      "推荐方向": "机器人编程",
+      "推荐理由": "",
+      "客户来源": "小红书",
+      "当前阶段": "新签挖需",
+      "学情画像": "高净值待挖型、谨慎观望型",
+      "入学时间": "2025-09",
+      "在读时长": "9个月",
+      "等级考": "机器人2级",
+      "白名单比赛": "",
+      "老师侧支付力": "VEX",
+      "家长关注度": "群内回复:快|进班:经常进|疲态:无"
+    },
+    {
+      "姓名": "冯小晨",
+      "年级": "5年级",
+      "校区": "示例校区",
+      "居住小区": "星河湾",
+      "学校层次": "",
+      "支付力": "高",
+      "续费风险": "低",
+      "转介绍潜力": "高",
+      "跟进优先级": 4,
+      "推荐方向": "AI编程进阶营",
+      "推荐理由": "",
+      "客户来源": "转介绍",
+      "当前阶段": "在读更新",
+      "学情画像": "竞赛冲刺型、续费稳定型",
+      "入学时间": "2025-03",
+      "在读时长": "1年3个月",
+      "等级考": "Python2级",
+      "白名单比赛": "全国青少年AI创新赛2026",
+      "老师侧支付力": "研学、lab",
+      "家长关注度": "群内回复:快|进班:经常进|疲态:无"
+    },
+    {
+      "姓名": "陈小博",
+      "年级": "6年级",
+      "校区": "示例校区",
+      "居住小区": "学府花园",
+      "学校层次": "",
+      "支付力": "中",
+      "续费风险": "低",
+      "转介绍潜力": "高",
+      "跟进优先级": 3,
+      "推荐方向": "Python入门",
+      "推荐理由": "",
+      "客户来源": "公众号",
+      "当前阶段": "在读更新",
+      "学情画像": "竞赛冲刺型、续费稳定型",
+      "入学时间": "2023-09",
+      "在读时长": "2年9个月",
+      "等级考": "Python2级",
+      "白名单比赛": "CSP-J 2025、CSP-S 2025、蓝桥杯2025",
+      "老师侧支付力": "研学、lab、VEX",
+      "家长关注度": "群内回复:快|进班:经常进|疲态:无"
+    },
+    {
+      "姓名": "褚小涵",
+      "年级": "2年级",
+      "校区": "示例校区",
+      "居住小区": "龙湖天街",
+      "学校层次": "",
+      "支付力": "中",
+      "续费风险": "高",
+      "转介绍潜力": "中",
+      "跟进优先级": 4,
+      "推荐方向": "待配置",
+      "推荐理由": "",
+      "客户来源": "大众点评",
+      "当前阶段": "诺访",
+      "学情画像": "兴趣探索型",
+      "入学时间": "2026-05",
+      "在读时长": "1个月",
+      "等级考": "未考",
+      "白名单比赛": "",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:快|进班:偶尔进|疲态:无"
+    },
+    {
+      "姓名": "卫小豪",
+      "年级": "4年级",
+      "校区": "示例校区",
+      "居住小区": "中航城",
+      "学校层次": "",
+      "支付力": "中",
+      "续费风险": "低",
+      "转介绍潜力": "高",
+      "跟进优先级": 3,
+      "推荐方向": "Python入门",
+      "推荐理由": "",
+      "客户来源": "小红书",
+      "当前阶段": "新签挖需",
+      "学情画像": "谨慎观望型、基础夯实型",
+      "入学时间": "2025-10",
+      "在读时长": "8个月",
+      "等级考": "Python1级",
+      "白名单比赛": "",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:快|进班:偶尔进|疲态:无"
+    },
+    {
+      "姓名": "蒋小乐",
+      "年级": "3年级",
+      "校区": "示例校区",
+      "居住小区": "普通商品房",
+      "学校层次": "",
+      "支付力": "中",
+      "续费风险": "中",
+      "转介绍潜力": "中",
+      "跟进优先级": 3,
+      "推荐方向": "待配置",
+      "推荐理由": "",
+      "客户来源": "地推",
+      "当前阶段": "诺访",
+      "学情画像": "兴趣探索型、流失风险型",
+      "入学时间": "2026-03",
+      "在读时长": "3个月",
+      "等级考": "未考",
+      "白名单比赛": "",
+      "老师侧支付力": "",
+      "家长关注度": "群内回复:慢|进班:不进|疲态:轻度"
+    },
+    {
+      "姓名": "沈小妍",
+      "年级": "5年级",
+      "校区": "示例校区",
+      "居住小区": "融创滨江",
+      "学校层次": "",
+      "支付力": "高",
+      "续费风险": "低",
+      "转介绍潜力": "高",
+      "跟进优先级": 4,
+      "推荐方向": "AI编程进阶营",
+      "推荐理由": "",
+      "客户来源": "转介绍",
+      "当前阶段": "在读更新",
+      "学情画像": "竞赛冲刺型",
+      "入学时间": "2025-07",
+      "在读时长": "11个月",
+      "等级考": "Python2级",
+      "白名单比赛": "蓝桥杯青少年组2026",
+      "老师侧支付力": "研学",
+      "家长关注度": "群内回复:快|进班:经常进|疲态:无"
     }
   ],
   "统计": {
     "总人数": 15,
-    "高净值占比": "47%",
-    "续费高风险占比": "27%",
-    "高转介绍潜力占比": "53%",
+    "高净值占比": "40%",
+    "续费高风险占比": "13%",
+    "高转介绍潜力占比": "67%",
     "家长来源小区分布": [
       {
         "小区": "翠湖花园",
         "人数": 1
       },
       {
-        "小区": "汤臣豪园",
+        "小区": "阳光丽景",
         "人数": 1
       },
       {
-        "小区": "仁恒滨江",
+        "小区": "老城区回迁房",
         "人数": 1
       },
       {
-        "小区": "保利锦上",
+        "小区": "万科城市花园",
         "人数": 1
       },
       {
-        "小区": "中粮海景",
+        "小区": "中海御城",
         "人数": 1
       },
       {
-        "小区": "金桥花园",
+        "小区": "金域蓝湾",
         "人数": 1
       },
       {
-        "小区": "老西门新苑",
+        "小区": "保利春天",
         "人数": 1
       },
       {
-        "小区": "大华锦绣",
+        "小区": "老小区",
         "人数": 1
       },
       {
-        "小区": "世茂滨江",
+        "小区": "华润橡树湾",
         "人数": 1
       },
       {
-        "小区": "陆家嘴花园",
+        "小区": "星河湾",
         "人数": 1
       }
     ],
     "学校层次分布": [
       {
-        "层次": "普通校",
-        "人数": 7
-      },
-      {
-        "层次": "区科创特色校",
-        "人数": 4
-      },
-      {
-        "层次": "市科创特色校",
-        "人数": 4
+        "层次": "未补齐",
+        "人数": 15
       }
     ],
     "推荐分布": [
       {
-        "课程": "Scratch基础",
-        "人数": 6,
-        "占比": "40%"
-      },
-      {
-        "课程": "竞赛冲刺班",
+        "课程": "AI编程进阶营",
         "人数": 5,
         "占比": "33%"
       },
       {
         "课程": "Python入门",
-        "人数": 2,
-        "占比": "13%"
+        "人数": 5,
+        "占比": "33%"
       },
       {
-        "课程": "机器人编程",
+        "课程": "待配置",
+        "人数": 3,
+        "占比": "20%"
+      },
+      {
+        "课程": "Scratch基础",
         "人数": 1,
         "占比": "7%"
       },
       {
-        "课程": "AI编程进阶营",
+        "课程": "机器人编程",
         "人数": 1,
         "占比": "7%"
       }
@@ -654,39 +870,230 @@ const REPORT_DATA = {
     "决策标签分布": [
       {
         "标签": "支付力-高",
-        "人数": 7
-      },
-      {
-        "标签": "续费风险-高",
-        "人数": 4
-      },
-      {
-        "标签": "转介绍潜力-高",
-        "人数": 8
-      },
-      {
-        "标签": "支付力-中",
         "人数": 6
       },
       {
-        "标签": "续费风险-中",
+        "标签": "续费风险-高",
         "人数": 2
+      },
+      {
+        "标签": "转介绍潜力-高",
+        "人数": 10
+      },
+      {
+        "标签": "支付力-中",
+        "人数": 8
+      },
+      {
+        "标签": "续费风险-中",
+        "人数": 5
       },
       {
         "标签": "转介绍潜力-中",
-        "人数": 4
+        "人数": 5
       },
       {
         "标签": "支付力-低",
-        "人数": 2
+        "人数": 1
       },
       {
         "标签": "续费风险-低",
-        "人数": 9
+        "人数": 8
       },
       {
         "标签": "转介绍潜力-低",
+        "人数": 0
+      }
+    ],
+    "渠道来源分布": [
+      {
+        "渠道": "转介绍",
+        "人数": 4
+      },
+      {
+        "渠道": "大众点评",
         "人数": 3
+      },
+      {
+        "渠道": "地推",
+        "人数": 3
+      },
+      {
+        "渠道": "小红书",
+        "人数": 3
+      },
+      {
+        "渠道": "公众号",
+        "人数": 2
+      }
+    ],
+    "新签阶段漏斗": [
+      {
+        "阶段": "新签挖需",
+        "人数": 6
+      },
+      {
+        "阶段": "诺访",
+        "人数": 4
+      },
+      {
+        "阶段": "在读更新",
+        "人数": 5
+      }
+    ],
+    "学情画像标签分布": [
+      {
+        "标签": "竞赛冲刺型",
+        "人数": 6
+      },
+      {
+        "标签": "科创潜力型",
+        "人数": 1
+      },
+      {
+        "标签": "兴趣探索型",
+        "人数": 4
+      },
+      {
+        "标签": "续费稳定型",
+        "人数": 4
+      },
+      {
+        "标签": "流失风险型",
+        "人数": 2
+      },
+      {
+        "标签": "高净值待挖型",
+        "人数": 3
+      },
+      {
+        "标签": "谨慎观望型",
+        "人数": 5
+      },
+      {
+        "标签": "基础夯实型",
+        "人数": 2
+      }
+    ],
+    "流失风险预警": [
+      {
+        "姓名": "王小刚",
+        "年级": "3年级",
+        "校区": "示例校区",
+        "学情画像": "兴趣探索型、流失风险型"
+      },
+      {
+        "姓名": "蒋小乐",
+        "年级": "3年级",
+        "校区": "示例校区",
+        "学情画像": "兴趣探索型、流失风险型"
+      }
+    ],
+    "高净值待挖列表": [
+      {
+        "姓名": "张小明",
+        "年级": "4年级",
+        "校区": "示例校区",
+        "学情画像": "高净值待挖型、谨慎观望型",
+        "老师侧支付力": ""
+      },
+      {
+        "姓名": "孙小杰",
+        "年级": "5年级",
+        "校区": "示例校区",
+        "学情画像": "科创潜力型、高净值待挖型",
+        "老师侧支付力": ""
+      },
+      {
+        "姓名": "郑小萱",
+        "年级": "3年级",
+        "校区": "示例校区",
+        "学情画像": "高净值待挖型、谨慎观望型",
+        "老师侧支付力": "VEX"
+      }
+    ],
+    "按学情画像分组推荐": [
+      {
+        "学情画像": "竞赛冲刺型",
+        "推荐课程方向": "C++/信奥课程",
+        "学员数": 6,
+        "学员名单": "李小红、赵小华、钱小亮、冯小晨、陈小博、沈小妍"
+      },
+      {
+        "学情画像": "科创潜力型",
+        "推荐课程方向": "机器人进阶/科创项目",
+        "学员数": 1,
+        "学员名单": "孙小杰"
+      },
+      {
+        "学情画像": "兴趣探索型",
+        "推荐课程方向": "Scratch/机器人入门",
+        "学员数": 4,
+        "学员名单": "王小刚、周小敏、褚小涵、蒋小乐"
+      },
+      {
+        "学情画像": "续费稳定型",
+        "推荐课程方向": "进阶课程/续费",
+        "学员数": 4,
+        "学员名单": "李小红、钱小亮、冯小晨、陈小博"
+      },
+      {
+        "学情画像": "流失风险型",
+        "推荐课程方向": "体验课重新激活",
+        "学员数": 2,
+        "学员名单": "王小刚、蒋小乐"
+      },
+      {
+        "学情画像": "高净值待挖型",
+        "推荐课程方向": "研学/VEX",
+        "学员数": 3,
+        "学员名单": "张小明、孙小杰、郑小萱"
+      },
+      {
+        "学情画像": "谨慎观望型",
+        "推荐课程方向": "深度解答/试听",
+        "学员数": 5,
+        "学员名单": "张小明、赵小华、吴小宇、郑小萱、卫小豪"
+      },
+      {
+        "学情画像": "基础夯实型",
+        "推荐课程方向": "等级考培训",
+        "学员数": 2,
+        "学员名单": "吴小宇、卫小豪"
+      }
+    ],
+    "按等级考路径推荐": [
+      {
+        "等级考级别": "中高级（已考3级以上）",
+        "推荐方向": "竞赛冲刺/CSP/蓝桥杯",
+        "学员数": 1
+      },
+      {
+        "等级考级别": "初级（1-2级）",
+        "推荐方向": "等级考进阶/Python进阶",
+        "学员数": 10
+      },
+      {
+        "等级考级别": "未考级",
+        "推荐方向": "Scratch启蒙/等级考起步",
+        "学员数": 4
+      }
+    ],
+    "按家长关注度推荐": [
+      {
+        "家长关注度": "高",
+        "推荐方向": "竞赛路线/深度规划",
+        "学员数": 7
+      },
+      {
+        "家长关注度": "中",
+        "推荐方向": "进阶课程/考级规划",
+        "学员数": 5
+      },
+      {
+        "家长关注度": "低",
+        "推荐方向": "体验课激活/基础巩固",
+        "学员数": 3
       }
     ]
   }
@@ -723,7 +1130,8 @@ function renderTable() {
     {key:'续费风险', label:'续费风险', isTag:true},
     {key:'转介绍潜力', label:'转介绍潜力', isTag:true},
     {key:'跟进优先级', label:'跟进优先级', isStars:true},
-    {key:'推荐方向', label:'推荐方向'}
+    {key:'推荐方向', label:'推荐方向'},
+    {key:'学情画像', label:'学情画像'}
   ];
   // 表头
   let headHtml = '<tr>';
@@ -780,7 +1188,7 @@ function applyFilters() {
     {key:'校区'}, {key:'姓名'}, {key:'年级'}, {key:'居住小区'}, {key:'学校层次'},
     {key:'支付力', isTag:true}, {key:'续费风险', isTag:true},
     {key:'转介绍潜力', isTag:true}, {key:'跟进优先级', isStars:true},
-    {key:'推荐方向'}
+    {key:'推荐方向'}, {key:'学情画像'}
   ];
 
   let bodyHtml = '';
@@ -819,6 +1227,13 @@ function renderAnalysis() {
   renderChart('chart-community', 'css-community', stats.家长来源小区分布 || [], '小区', '人数');
   renderChart('chart-school', 'css-school', stats.学校层次分布 || [], '层次', '人数');
   renderTagsChart(stats);
+
+  // 新增统计模块渲染
+  renderChannelChart();
+  renderFunnelChart();
+  renderProfileChart();
+  renderRiskList();
+  renderPotentialList();
 }
 
 function renderChart(canvasId, cssId, data, labelKey, valueKey) {
@@ -921,6 +1336,11 @@ function renderRecommend() {
   fillSelect('filter-recommend', courses);
 
   renderRecommendTable('');
+
+  // 新增推荐分组模块渲染
+  renderProfileRecommend();
+  renderExamPathRecommend();
+  renderAttentionRecommend();
 }
 
 function filterRecommend() {
@@ -943,6 +1363,196 @@ function renderRecommendTable(course) {
     html += '</tr>';
   });
   document.getElementById('recommend-body').innerHTML = html;
+}
+
+// ===== 页2新增渲染函数 =====
+
+function renderChannelChart() {
+  const data = (REPORT_DATA.统计 || {}).渠道来源分布 || [];
+  if (data.length === 0) return;
+  const labels = data.map(d => d['渠道'] || '');
+  const values = data.map(d => d['人数'] || 0);
+  const colors = ['#667eea','#764ba2','#f39c12','#27ae60','#e74c3c','#3498db','#1abc9c','#9b59b6'];
+
+  if (typeof Chart !== 'undefined') {
+    const ctx = document.getElementById('channelChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'pie',
+      data: { labels: labels, datasets: [{ data: values, backgroundColor: colors }] },
+      options: { responsive: true, plugins: { legend: { position: 'right' } } }
+    });
+  } else {
+    document.getElementById('channelChart').style.display = 'none';
+    let html = '';
+    const max = Math.max(...values, 1);
+    data.forEach((d, i) => {
+      const pct = (d['人数'] / max * 100) + '%';
+      html += '<div class="css-bar-item"><div class="css-bar-label">' + d['渠道'] + '</div>';
+      html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
+      html += '<div class="css-bar-value">' + d['人数'] + '</div></div>';
+    });
+    document.getElementById('channelBarChart').innerHTML = html;
+  }
+}
+
+function renderFunnelChart() {
+  const data = (REPORT_DATA.统计 || {}).新签阶段漏斗 || [];
+  if (data.length === 0) return;
+  const labels = data.map(d => d['阶段'] || '');
+  const values = data.map(d => d['人数'] || 0);
+  const colors = ['#667eea','#f39c12','#27ae60','#e74c3c','#3498db'];
+
+  if (typeof Chart !== 'undefined') {
+    const ctx = document.getElementById('funnelChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 6 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' }
+    });
+  } else {
+    document.getElementById('funnelChart').style.display = 'none';
+    let html = '';
+    const max = Math.max(...values, 1);
+    data.forEach((d, i) => {
+      const pct = (d['人数'] / max * 100) + '%';
+      html += '<div class="css-bar-item"><div class="css-bar-label">' + d['阶段'] + '</div>';
+      html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
+      html += '<div class="css-bar-value">' + d['人数'] + '</div></div>';
+    });
+    document.getElementById('funnelBarChart').innerHTML = html;
+  }
+}
+
+function renderProfileChart() {
+  const data = (REPORT_DATA.统计 || {}).学情画像标签分布 || [];
+  if (data.length === 0) return;
+  const labels = data.map(d => d['标签'] || '');
+  const values = data.map(d => d['人数'] || 0);
+  const colors = ['#e74c3c','#f39c12','#27ae60','#3498db','#667eea','#764ba2','#1abc9c','#9b59b6'];
+
+  if (typeof Chart !== 'undefined') {
+    const ctx = document.getElementById('profileChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 6 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' }
+    });
+  } else {
+    document.getElementById('profileChart').style.display = 'none';
+    let html = '';
+    const max = Math.max(...values, 1);
+    data.forEach((d, i) => {
+      const pct = (d['人数'] / max * 100) + '%';
+      html += '<div class="css-bar-item"><div class="css-bar-label">' + d['标签'] + '</div>';
+      html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
+      html += '<div class="css-bar-value">' + d['人数'] + '</div></div>';
+    });
+    document.getElementById('profileBarChart').innerHTML = html;
+  }
+}
+
+function renderRiskList() {
+  const data = (REPORT_DATA.统计 || {}).流失风险预警 || [];
+  const tbody = document.getElementById('riskTableBody');
+  const empty = document.getElementById('riskEmpty');
+  if (data.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  let html = '';
+  data.forEach(d => {
+    html += '<tr>';
+    html += '<td>' + (d['姓名']||'') + '</td>';
+    html += '<td>' + (d['年级']||'') + '</td>';
+    html += '<td>' + (d['校区']||'') + '</td>';
+    html += '<td><span class="tag tag-high">' + (d['学情画像']||'') + '</span></td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function renderPotentialList() {
+  const data = (REPORT_DATA.统计 || {}).高净值待挖列表 || [];
+  const tbody = document.getElementById('potentialTableBody');
+  const empty = document.getElementById('potentialEmpty');
+  if (data.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  let html = '';
+  data.forEach(d => {
+    html += '<tr>';
+    html += '<td>' + (d['姓名']||'') + '</td>';
+    html += '<td>' + (d['年级']||'') + '</td>';
+    html += '<td>' + (d['校区']||'') + '</td>';
+    html += '<td><span class="tag tag-medium">' + (d['学情画像']||'') + '</span></td>';
+    html += '<td>' + (d['老师侧支付力']||'') + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+// ===== 页3新增渲染函数 =====
+
+function renderProfileRecommend() {
+  const data = (REPORT_DATA.统计 || {}).按学情画像分组推荐 || [];
+  const tbody = document.getElementById('profileRecommendBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#aaa;">暂无数据</td></tr>';
+    return;
+  }
+  let html = '';
+  data.forEach(d => {
+    html += '<tr>';
+    html += '<td><span class="tag tag-medium">' + (d['学情画像']||'') + '</span></td>';
+    html += '<td>' + (d['推荐课程方向']||'待配置') + '</td>';
+    html += '<td>' + (d['学员数']||0) + '</td>';
+    html += '<td>' + (d['学员名单']||'') + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function renderExamPathRecommend() {
+  const data = (REPORT_DATA.统计 || {}).按等级考路径推荐 || [];
+  const tbody = document.getElementById('examPathBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#aaa;">暂无数据</td></tr>';
+    return;
+  }
+  let html = '';
+  data.forEach(d => {
+    html += '<tr>';
+    html += '<td>' + (d['等级考级别']||'') + '</td>';
+    html += '<td>' + (d['推荐方向']||'') + '</td>';
+    html += '<td>' + (d['学员数']||0) + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function renderAttentionRecommend() {
+  const data = (REPORT_DATA.统计 || {}).按家长关注度推荐 || [];
+  const tbody = document.getElementById('attentionBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#aaa;">暂无数据</td></tr>';
+    return;
+  }
+  let html = '';
+  data.forEach(d => {
+    var level = d['家长关注度'] || '';
+    var cls = level === '高' ? 'tag-high' : (level === '低' ? 'tag-low' : 'tag-medium');
+    html += '<tr>';
+    html += '<td><span class="tag ' + cls + '">' + level + '</span></td>';
+    html += '<td>' + (d['推荐方向']||'') + '</td>';
+    html += '<td>' + (d['学员数']||0) + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
 }
 
 // ===== 初始化 =====

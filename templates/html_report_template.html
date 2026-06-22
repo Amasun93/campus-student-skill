@@ -299,6 +299,42 @@ body {
     </div>
     <div id="table-empty" style="display:none;text-align:center;padding:40px;color:#aaa;">暂无数据</div>
   </div>
+
+  <!-- 新增：按学情画像分组推荐 -->
+  <div class="card">
+    <div class="card-title">🎯 按学情画像分组推荐</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="profileRecommendTable">
+        <thead><tr><th>学情画像</th><th>推荐课程方向</th><th>学员数</th><th>学员名单</th></tr></thead>
+        <tbody id="profileRecommendBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 新增：按等级考路径推荐 -->
+  <div class="card">
+    <div class="card-title">📝 按等级考路径推荐</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="examPathTable">
+        <thead><tr><th>等级考级别</th><th>推荐方向</th><th>学员数</th></tr></thead>
+        <tbody id="examPathBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 新增：按家长关注度推荐 -->
+  <div class="card">
+    <div class="card-title">👁️ 按家长关注度推荐</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="attentionTable">
+        <thead><tr><th>家长关注度</th><th>推荐方向</th><th>学员数</th></tr></thead>
+        <tbody id="attentionBody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- ===== 页2：校区分析报告 ===== -->
@@ -322,6 +358,59 @@ body {
     <div class="card-title">决策标签分布</div>
     <canvas id="chart-tags"></canvas>
     <div class="css-bar-chart" id="css-tags" style="display:none;"></div>
+  </div>
+
+  <!-- 新增：渠道来源分布 -->
+  <div class="card">
+    <div class="card-title">📊 客户来源分布</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <canvas id="channelChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="channelBarChart"></div>
+  </div>
+
+  <!-- 新增：新签阶段漏斗 -->
+  <div class="card">
+    <div class="card-title">🔄 新签阶段漏斗</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <canvas id="funnelChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="funnelBarChart"></div>
+  </div>
+
+  <!-- 新增：学情画像标签分布 -->
+  <div class="card">
+    <div class="card-title">🎯 学情画像标签分布</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <canvas id="profileChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="profileBarChart"></div>
+  </div>
+
+  <!-- 新增：流失风险预警列表 -->
+  <div class="card">
+    <div class="card-title">⚠️ 流失风险预警</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="riskTable">
+        <thead><tr><th>姓名</th><th>年级</th><th>校区</th><th>学情画像</th></tr></thead>
+        <tbody id="riskTableBody"></tbody>
+      </table>
+    </div>
+    <div id="riskEmpty" style="display:none;text-align:center;padding:20px;color:#aaa;">暂无流失风险学员</div>
+  </div>
+
+  <!-- 新增：高净值待挖列表 -->
+  <div class="card">
+    <div class="card-title">💎 高净值待挖学员</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="potentialTable">
+        <thead><tr><th>姓名</th><th>年级</th><th>校区</th><th>学情画像</th><th>老师侧支付力</th></tr></thead>
+        <tbody id="potentialTableBody"></tbody>
+      </table>
+    </div>
+    <div id="potentialEmpty" style="display:none;text-align:center;padding:20px;color:#aaa;">暂无高净值待挖学员</div>
   </div>
 </div>
 
@@ -401,7 +490,8 @@ function renderTable() {
     {key:'续费风险', label:'续费风险', isTag:true},
     {key:'转介绍潜力', label:'转介绍潜力', isTag:true},
     {key:'跟进优先级', label:'跟进优先级', isStars:true},
-    {key:'推荐方向', label:'推荐方向'}
+    {key:'推荐方向', label:'推荐方向'},
+    {key:'学情画像', label:'学情画像'}
   ];
   // 表头
   let headHtml = '<tr>';
@@ -458,7 +548,7 @@ function applyFilters() {
     {key:'校区'}, {key:'姓名'}, {key:'年级'}, {key:'居住小区'}, {key:'学校层次'},
     {key:'支付力', isTag:true}, {key:'续费风险', isTag:true},
     {key:'转介绍潜力', isTag:true}, {key:'跟进优先级', isStars:true},
-    {key:'推荐方向'}
+    {key:'推荐方向'}, {key:'学情画像'}
   ];
 
   let bodyHtml = '';
@@ -497,6 +587,13 @@ function renderAnalysis() {
   renderChart('chart-community', 'css-community', stats.家长来源小区分布 || [], '小区', '人数');
   renderChart('chart-school', 'css-school', stats.学校层次分布 || [], '层次', '人数');
   renderTagsChart(stats);
+
+  // 新增统计模块渲染
+  renderChannelChart();
+  renderFunnelChart();
+  renderProfileChart();
+  renderRiskList();
+  renderPotentialList();
 }
 
 function renderChart(canvasId, cssId, data, labelKey, valueKey) {
@@ -599,6 +696,11 @@ function renderRecommend() {
   fillSelect('filter-recommend', courses);
 
   renderRecommendTable('');
+
+  // 新增推荐分组模块渲染
+  renderProfileRecommend();
+  renderExamPathRecommend();
+  renderAttentionRecommend();
 }
 
 function filterRecommend() {
@@ -621,6 +723,196 @@ function renderRecommendTable(course) {
     html += '</tr>';
   });
   document.getElementById('recommend-body').innerHTML = html;
+}
+
+// ===== 页2新增渲染函数 =====
+
+function renderChannelChart() {
+  const data = (REPORT_DATA.统计 || {}).渠道来源分布 || [];
+  if (data.length === 0) return;
+  const labels = data.map(d => d['渠道'] || '');
+  const values = data.map(d => d['人数'] || 0);
+  const colors = ['#667eea','#764ba2','#f39c12','#27ae60','#e74c3c','#3498db','#1abc9c','#9b59b6'];
+
+  if (typeof Chart !== 'undefined') {
+    const ctx = document.getElementById('channelChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'pie',
+      data: { labels: labels, datasets: [{ data: values, backgroundColor: colors }] },
+      options: { responsive: true, plugins: { legend: { position: 'right' } } }
+    });
+  } else {
+    document.getElementById('channelChart').style.display = 'none';
+    let html = '';
+    const max = Math.max(...values, 1);
+    data.forEach((d, i) => {
+      const pct = (d['人数'] / max * 100) + '%';
+      html += '<div class="css-bar-item"><div class="css-bar-label">' + d['渠道'] + '</div>';
+      html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
+      html += '<div class="css-bar-value">' + d['人数'] + '</div></div>';
+    });
+    document.getElementById('channelBarChart').innerHTML = html;
+  }
+}
+
+function renderFunnelChart() {
+  const data = (REPORT_DATA.统计 || {}).新签阶段漏斗 || [];
+  if (data.length === 0) return;
+  const labels = data.map(d => d['阶段'] || '');
+  const values = data.map(d => d['人数'] || 0);
+  const colors = ['#667eea','#f39c12','#27ae60','#e74c3c','#3498db'];
+
+  if (typeof Chart !== 'undefined') {
+    const ctx = document.getElementById('funnelChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 6 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' }
+    });
+  } else {
+    document.getElementById('funnelChart').style.display = 'none';
+    let html = '';
+    const max = Math.max(...values, 1);
+    data.forEach((d, i) => {
+      const pct = (d['人数'] / max * 100) + '%';
+      html += '<div class="css-bar-item"><div class="css-bar-label">' + d['阶段'] + '</div>';
+      html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
+      html += '<div class="css-bar-value">' + d['人数'] + '</div></div>';
+    });
+    document.getElementById('funnelBarChart').innerHTML = html;
+  }
+}
+
+function renderProfileChart() {
+  const data = (REPORT_DATA.统计 || {}).学情画像标签分布 || [];
+  if (data.length === 0) return;
+  const labels = data.map(d => d['标签'] || '');
+  const values = data.map(d => d['人数'] || 0);
+  const colors = ['#e74c3c','#f39c12','#27ae60','#3498db','#667eea','#764ba2','#1abc9c','#9b59b6'];
+
+  if (typeof Chart !== 'undefined') {
+    const ctx = document.getElementById('profileChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 6 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, indexAxis: 'y' }
+    });
+  } else {
+    document.getElementById('profileChart').style.display = 'none';
+    let html = '';
+    const max = Math.max(...values, 1);
+    data.forEach((d, i) => {
+      const pct = (d['人数'] / max * 100) + '%';
+      html += '<div class="css-bar-item"><div class="css-bar-label">' + d['标签'] + '</div>';
+      html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
+      html += '<div class="css-bar-value">' + d['人数'] + '</div></div>';
+    });
+    document.getElementById('profileBarChart').innerHTML = html;
+  }
+}
+
+function renderRiskList() {
+  const data = (REPORT_DATA.统计 || {}).流失风险预警 || [];
+  const tbody = document.getElementById('riskTableBody');
+  const empty = document.getElementById('riskEmpty');
+  if (data.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  let html = '';
+  data.forEach(d => {
+    html += '<tr>';
+    html += '<td>' + (d['姓名']||'') + '</td>';
+    html += '<td>' + (d['年级']||'') + '</td>';
+    html += '<td>' + (d['校区']||'') + '</td>';
+    html += '<td><span class="tag tag-high">' + (d['学情画像']||'') + '</span></td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function renderPotentialList() {
+  const data = (REPORT_DATA.统计 || {}).高净值待挖列表 || [];
+  const tbody = document.getElementById('potentialTableBody');
+  const empty = document.getElementById('potentialEmpty');
+  if (data.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  let html = '';
+  data.forEach(d => {
+    html += '<tr>';
+    html += '<td>' + (d['姓名']||'') + '</td>';
+    html += '<td>' + (d['年级']||'') + '</td>';
+    html += '<td>' + (d['校区']||'') + '</td>';
+    html += '<td><span class="tag tag-medium">' + (d['学情画像']||'') + '</span></td>';
+    html += '<td>' + (d['老师侧支付力']||'') + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+// ===== 页3新增渲染函数 =====
+
+function renderProfileRecommend() {
+  const data = (REPORT_DATA.统计 || {}).按学情画像分组推荐 || [];
+  const tbody = document.getElementById('profileRecommendBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#aaa;">暂无数据</td></tr>';
+    return;
+  }
+  let html = '';
+  data.forEach(d => {
+    html += '<tr>';
+    html += '<td><span class="tag tag-medium">' + (d['学情画像']||'') + '</span></td>';
+    html += '<td>' + (d['推荐课程方向']||'待配置') + '</td>';
+    html += '<td>' + (d['学员数']||0) + '</td>';
+    html += '<td>' + (d['学员名单']||'') + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function renderExamPathRecommend() {
+  const data = (REPORT_DATA.统计 || {}).按等级考路径推荐 || [];
+  const tbody = document.getElementById('examPathBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#aaa;">暂无数据</td></tr>';
+    return;
+  }
+  let html = '';
+  data.forEach(d => {
+    html += '<tr>';
+    html += '<td>' + (d['等级考级别']||'') + '</td>';
+    html += '<td>' + (d['推荐方向']||'') + '</td>';
+    html += '<td>' + (d['学员数']||0) + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function renderAttentionRecommend() {
+  const data = (REPORT_DATA.统计 || {}).按家长关注度推荐 || [];
+  const tbody = document.getElementById('attentionBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#aaa;">暂无数据</td></tr>';
+    return;
+  }
+  let html = '';
+  data.forEach(d => {
+    var level = d['家长关注度'] || '';
+    var cls = level === '高' ? 'tag-high' : (level === '低' ? 'tag-low' : 'tag-medium');
+    html += '<tr>';
+    html += '<td><span class="tag ' + cls + '">' + level + '</span></td>';
+    html += '<td>' + (d['推荐方向']||'') + '</td>';
+    html += '<td>' + (d['学员数']||0) + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
 }
 
 // ===== 初始化 =====

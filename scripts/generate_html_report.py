@@ -6,9 +6,11 @@
      → 输出单文件校区分析报告.html（三页结构）
 
 三页结构：
-- 页1：全员表格+筛选（按校区/年级/支付力/风险筛选排序）
-- 页2：校区分析报告（高净值占比/小区分布/学校层次分布/决策标签分布）
-- 页3：产品推荐画像（推荐课程分布+百分比+画像筛选）
+- 页1：全员表格+筛选（按校区/年级/支付力/风险筛选排序）+ 学情画像列
+- 页2：校区分析报告（高净值占比/小区分布/学校层次分布/决策标签分布
+       + 渠道来源分布/新签阶段漏斗/学情画像标签分布/流失风险预警/高净值待挖）
+- 页3：产品推荐画像（推荐课程分布+百分比+画像筛选
+       + 按学情画像分组推荐/按等级考路径推荐/按家长关注度推荐）
 
 用法：
     python scripts/generate_html_report.py --input <带标签汇总表.xlsx> --output <报告.html> --config <校区配置.json>
@@ -25,8 +27,85 @@ from typing import Any, Dict, List
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
-    SUMMARY_COLUMNS, get_timestamp, print_script_result,
+    SUMMARY_COLUMNS, PROFILE_TAGS, PROFILE_TAG_PRIORITY,
+    get_timestamp, print_script_result,
 )
+
+# 学情画像标签→推荐课程方向映射
+PROFILE_COURSE_MAP = {
+    "竞赛冲刺型": "C++/信奥课程",
+    "高净值待挖型": "研学/VEX",
+    "兴趣探索型": "Scratch/机器人入门",
+    "科创潜力型": "机器人进阶/科创项目",
+    "续费稳定型": "进阶课程/续费",
+    "流失风险型": "体验课重新激活",
+    "谨慎观望型": "深度解答/试听",
+    "基础夯实型": "等级考培训",
+}
+
+# 等级考级别→推荐方向映射
+EXAM_PATH_MAP = {
+    "advanced": {"label": "中高级（已考3级以上）", "recommend": "竞赛冲刺/CSP/蓝桥杯"},
+    "beginner": {"label": "初级（1-2级）", "recommend": "等级考进阶/Python进阶"},
+    "none": {"label": "未考级", "recommend": "Scratch启蒙/等级考起步"},
+}
+
+# 家长关注度→推荐方向映射
+ATTENTION_MAP = {
+    "高": "竞赛路线/深度规划",
+    "中": "进阶课程/考级规划",
+    "低": "体验课激活/基础巩固",
+}
+
+
+def _classify_exam_level(exam_text: str) -> str:
+    """将等级考文本分类为 advanced/beginner/none。
+
+    Args:
+        exam_text: 等级考字段文本，如"机器人3级"、"Python1级"、"未考"
+
+    Returns:
+        "advanced" / "beginner" / "none"
+    """
+    text = (exam_text or "").strip()
+    if not text or text == "未考" or text == "无":
+        return "none"
+    # 提取数字
+    import re
+    nums = re.findall(r"\d+", text)
+    if nums:
+        level = int(nums[0])
+        if level >= 3:
+            return "advanced"
+        else:
+            return "beginner"
+    return "none"
+
+
+def _classify_attention(attention_text: str) -> str:
+    """将家长关注度文本分类为 高/中/低。
+
+    Args:
+        attention_text: 家长关注度字段文本
+
+    Returns:
+        "高" / "中" / "低"
+    """
+    text = (attention_text or "").strip()
+    if not text:
+        return "中"
+    # 群内回复快+经常进班=高
+    if ("快" in text and "经常进" in text) or "高" in text:
+        return "高"
+    # 回复慢/不进班/疲态=低
+    if ("慢" in text and "不进" in text) or "低" in text:
+        return "低"
+    if "疲态" in text and "疲态" not in text.replace("无疲态", ""):
+        return "低"
+    # 疲态:轻度/明显 → 低
+    if ("轻度" in text or "明显" in text) and "疲态" in text:
+        return "低"
+    return "中"
 
 
 def read_tagged_xlsx(file_path: str) -> List[Dict[str, Any]]:
@@ -98,7 +177,7 @@ def build_report_data(students: List[Dict[str, Any]], campus: str) -> Dict[str, 
     """
     total = len(students)
 
-    # 构建学员列表（精简字段用于前端展示）
+    # 构建学员列表（精简字段用于前端展示）+ 新增B2/D2/B_cross字段
     student_list: List[Dict[str, Any]] = []
     for s in students:
         student_list.append({
@@ -113,6 +192,17 @@ def build_report_data(students: List[Dict[str, Any]], campus: str) -> Dict[str, 
             "跟进优先级": parse_priority_to_int(s.get("跟进优先级", "")),
             "推荐方向": s.get("推荐产品方向", ""),
             "推荐理由": s.get("推荐理由", "") if "推荐理由" in s else "",
+            # B2销售漏斗字段
+            "客户来源": s.get("客户来源", ""),
+            "当前阶段": s.get("当前阶段", ""),
+            # D2学情履历字段
+            "学情画像": s.get("学情画像", ""),
+            "入学时间": s.get("入学时间", ""),
+            "在读时长": s.get("在读时长", ""),
+            "等级考": s.get("等级考", ""),
+            "白名单比赛": s.get("白名单比赛", ""),
+            "老师侧支付力": s.get("老师侧支付力", ""),
+            "家长关注度": s.get("家长关注度", ""),
         })
 
     # 统计计算
@@ -169,6 +259,124 @@ def build_report_data(students: List[Dict[str, Any]], campus: str) -> Dict[str, 
         tag_dist.append({"标签": f"续费风险-{level}", "人数": risk_counter.get(level, 0)})
         tag_dist.append({"标签": f"转介绍潜力-{level}", "人数": referral_counter.get(level, 0)})
 
+    # ===== 新增统计（页2）=====
+
+    # 1. 渠道来源分布（客户来源 Counter）
+    channel_counter = Counter()
+    for s in students:
+        channel = (s.get("客户来源", "") or "").strip()
+        if channel:
+            channel_counter[channel] += 1
+    channel_dist = [{"渠道": k, "人数": v} for k, v in channel_counter.most_common()]
+
+    # 2. 新签阶段漏斗（当前阶段 Counter，按固定顺序排序）
+    stage_order = ["新签挖需", "诺访", "在读更新"]
+    stage_counter = Counter()
+    for s in students:
+        stage = (s.get("当前阶段", "") or "").strip()
+        if stage:
+            stage_counter[stage] += 1
+    funnel_dist = []
+    for stage in stage_order:
+        if stage_counter.get(stage, 0) > 0:
+            funnel_dist.append({"阶段": stage, "人数": stage_counter[stage]})
+    # 追加不在stage_order中的其他阶段
+    for stage, count in stage_counter.most_common():
+        if stage not in stage_order:
+            funnel_dist.append({"阶段": stage, "人数": count})
+
+    # 3. 学情画像标签分布（遍历学员学情画像列，多标签用"、"分隔，按PROFILE_TAGS顺序输出）
+    profile_tag_counter = Counter()
+    for s in students:
+        profile_text = (s.get("学情画像", "") or "").strip()
+        if profile_text:
+            tags = [t.strip() for t in profile_text.split("、") if t.strip()]
+            for tag in tags:
+                profile_tag_counter[tag] += 1
+    profile_dist = []
+    for tag in PROFILE_TAGS:
+        count = profile_tag_counter.get(tag, 0)
+        if count > 0:
+            profile_dist.append({"标签": tag, "人数": count})
+
+    # 4. 流失风险预警列表（学情画像含"流失风险型"）
+    risk_warning_list = []
+    for s in students:
+        profile_text = (s.get("学情画像", "") or "").strip()
+        if "流失风险型" in profile_text:
+            risk_warning_list.append({
+                "姓名": s.get("姓名", ""),
+                "年级": s.get("年级", ""),
+                "校区": s.get("校区", campus),
+                "学情画像": profile_text,
+            })
+
+    # 5. 高净值待挖列表（学情画像含"高净值待挖型"）
+    potential_list = []
+    for s in students:
+        profile_text = (s.get("学情画像", "") or "").strip()
+        if "高净值待挖型" in profile_text:
+            potential_list.append({
+                "姓名": s.get("姓名", ""),
+                "年级": s.get("年级", ""),
+                "校区": s.get("校区", campus),
+                "学情画像": profile_text,
+                "老师侧支付力": s.get("老师侧支付力", ""),
+            })
+
+    # ===== 新增推荐分组（页3）=====
+
+    # 1. 按学情画像分组推荐
+    profile_recommend = []
+    profile_groups: Dict[str, List[str]] = {}
+    for s in students:
+        profile_text = (s.get("学情画像", "") or "").strip()
+        if profile_text:
+            tags = [t.strip() for t in profile_text.split("、") if t.strip()]
+            for tag in tags:
+                if tag not in profile_groups:
+                    profile_groups[tag] = []
+                profile_groups[tag].append(s.get("姓名", ""))
+    # 按PROFILE_TAG_PRIORITY顺序输出
+    for tag in PROFILE_TAGS:
+        if tag in profile_groups and profile_groups[tag]:
+            recommend_course = PROFILE_COURSE_MAP.get(tag, "待配置")
+            profile_recommend.append({
+                "学情画像": tag,
+                "推荐课程方向": recommend_course,
+                "学员数": len(profile_groups[tag]),
+                "学员名单": "、".join(profile_groups[tag]),
+            })
+
+    # 2. 按等级考路径推荐
+    exam_path_groups: Dict[str, List[str]] = {"advanced": [], "beginner": [], "none": []}
+    for s in students:
+        exam_text = s.get("等级考", "")
+        level = _classify_exam_level(exam_text)
+        exam_path_groups[level].append(s.get("姓名", ""))
+    exam_path_recommend = []
+    for level in ["advanced", "beginner", "none"]:
+        info = EXAM_PATH_MAP[level]
+        exam_path_recommend.append({
+            "等级考级别": info["label"],
+            "推荐方向": info["recommend"],
+            "学员数": len(exam_path_groups[level]),
+        })
+
+    # 3. 按家长关注度推荐
+    attention_groups: Dict[str, List[str]] = {"高": [], "中": [], "低": []}
+    for s in students:
+        attention_text = s.get("家长关注度", "")
+        level = _classify_attention(attention_text)
+        attention_groups[level].append(s.get("姓名", ""))
+    attention_recommend = []
+    for level in ["高", "中", "低"]:
+        attention_recommend.append({
+            "家长关注度": level,
+            "推荐方向": ATTENTION_MAP[level],
+            "学员数": len(attention_groups[level]),
+        })
+
     # 组装报告数据
     report_data = {
         "生成时间": get_timestamp(),
@@ -183,6 +391,16 @@ def build_report_data(students: List[Dict[str, Any]], campus: str) -> Dict[str, 
             "学校层次分布": school_dist,
             "推荐分布": recommend_dist,
             "决策标签分布": tag_dist,
+            # 页2新增统计
+            "渠道来源分布": channel_dist,
+            "新签阶段漏斗": funnel_dist,
+            "学情画像标签分布": profile_dist,
+            "流失风险预警": risk_warning_list,
+            "高净值待挖列表": potential_list,
+            # 页3新增推荐分组
+            "按学情画像分组推荐": profile_recommend,
+            "按等级考路径推荐": exam_path_recommend,
+            "按家长关注度推荐": attention_recommend,
         }
     }
 

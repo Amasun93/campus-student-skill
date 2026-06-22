@@ -3,8 +3,9 @@
 校区学员情况管理 Skill - 采集端导出脚本
 
 功能：读取采集端JSON缓存 → 生成个人学员表.xlsx
-- 顾问版：含A基础标识 + B家庭背景字段列
-- 老师版：含A基础标识 + C在校情况 + D课程成果字段列
+- 顾问版：含A基础标识 + B1家庭背景 + B2销售漏斗 + E学员细节备注
+- 老师版：含A基础标识 + C在校情况 + D1课程成果 + D2学情履历 + E + B_cross_teacher
+- 老师版D2.03当前年级/D2.04在读时长自动计算填充
 - 含采集完成率sheet
 
 用法：
@@ -22,15 +23,21 @@ from typing import Any, Dict, List
 # 添加scripts目录到路径，导入utils
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
-    A_FIELDS, B_FIELDS, C_FIELDS, D_FIELDS, E_FIELDS,
+    A_FIELDS, B_FIELDS, B2_FIELDS, C_FIELDS, D_FIELDS, D2_FIELDS,
+    E_FIELDS, CROSS_FIELDS,
     CONSULTANT_COLUMNS, TEACHER_COLUMNS, COMPLETION_COLUMNS,
     get_excel_styles, apply_header_style, calculate_completion,
+    calculate_current_grade, calculate_enrollment_duration,
     print_script_result,
 )
 
 
 def flatten_student_record(record: Dict[str, Any], role: str) -> Dict[str, str]:
     """将嵌套的学生记录扁平化为字段名→值的字典。
+
+    顾问版：A基础标识 + B1家庭背景 + B2销售漏斗 + E学员细节备注
+    老师版：A基础标识 + C在校情况 + D1课程成果 + D2学情履历 + E + B_cross_teacher
+    老师版特殊：D2.03当前年级/D2.04在读时长自动计算填充。
 
     Args:
         record: 学生记录字典（嵌套结构）
@@ -49,12 +56,17 @@ def flatten_student_record(record: Dict[str, Any], role: str) -> Dict[str, str]:
     flat["所在校区"] = record.get("所在校区", record.get("校区", ""))
 
     if role == "顾问":
-        # 顾问版：B家庭背景字段
+        # 顾问版：B1家庭背景字段
         family = record.get("家庭背景", {})
         for f in B_FIELDS:
             flat[f] = family.get(f, "") if family else ""
+
+        # 顾问版：B2销售漏斗字段
+        funnel = record.get("销售漏斗", {})
+        for f in B2_FIELDS:
+            flat[f] = funnel.get(f, "") if funnel else ""
     else:
-        # 老师版：C在校情况 + D课程成果字段
+        # 老师版：C在校情况 + D1课程成果字段
         school = record.get("在校情况", {})
         for f in C_FIELDS:
             flat[f] = school.get(f, "") if school else ""
@@ -62,6 +74,22 @@ def flatten_student_record(record: Dict[str, Any], role: str) -> Dict[str, str]:
         course = record.get("课程成果", {})
         for f in D_FIELDS:
             flat[f] = course.get(f, "") if course else ""
+
+        # 老师版：D2学情履历字段
+        diary = record.get("学情履历", {})
+        for f in D2_FIELDS:
+            flat[f] = diary.get(f, "") if diary else ""
+
+        # D2.03当前年级 / D2.04在读时长 自动计算填充（覆盖缓存里的值）
+        enroll_date = diary.get("入学时间", "") if diary else ""
+        enroll_grade = diary.get("入学时年级", "") if diary else ""
+        if enroll_date and enroll_grade:
+            flat["当前年级"] = calculate_current_grade(enroll_date, enroll_grade)
+        if enroll_date:
+            flat["在读时长"] = calculate_enrollment_duration(enroll_date)
+
+        # 老师版：B_cross_teacher 家庭背景(老师补充)
+        flat["家庭背景(老师补充)"] = record.get("家庭背景_老师补充", "")
 
     # E学员细节备注（顾问+老师均可补充）
     for f in E_FIELDS:

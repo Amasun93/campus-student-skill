@@ -3,7 +3,8 @@
 校区学员情况管理 Skill - 决策标签推算脚本
 
 功能：读取汇总表 + 校区配置.json → 按配置阈值计算5个决策标签
-     → 写入汇总表（条件格式红黄绿）→ 无匹配规则标"待配置"
+     + 推算学情画像标签（8类）→ 写入汇总表（条件格式红黄绿）
+     → 无匹配规则标"待配置"
 
 决策标签：
 1. 支付力等级（高/中/低）- 从配置读支付力阈值
@@ -11,6 +12,10 @@
 3. 转介绍潜力（高/中/低）- 从配置读转介绍潜力阈值
 4. 跟进优先级（1-5星）- 从配置读权重逻辑
 5. 推荐产品方向 - 从配置读推荐规则匹配
+
+学情画像（8类标签，多标签共存，命中≥3个取前2个）：
+竞赛冲刺型/科创潜力型/兴趣探索型/续费稳定型/
+流失风险型/高净值待挖型/谨慎观望型/基础夯实型
 
 用法：
     python scripts/write_tags.py --input <汇总表.xlsx> --output <带标签汇总表.xlsx> --config <校区配置.json>
@@ -28,10 +33,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
     A_FIELDS, B_FIELDS, C_FIELDS, D_FIELDS,
     SUMMARY_COLUMNS, AI_FIELDS, TAG_FIELDS,
+    PROFILE_TAGS, PROFILE_TAG_PRIORITY,
     get_excel_styles, apply_header_style, apply_tag_conditional_format,
     parse_learning_months, parse_renewal_count,
     calculate_payment_level, calculate_renewal_risk,
     calculate_referral_potential, calculate_priority,
+    calculate_student_profile,
     match_recommendation, print_script_result,
 )
 
@@ -72,14 +79,14 @@ def read_summary_xlsx(file_path: str) -> List[Dict[str, Any]]:
 
 def calculate_tags_for_student(student: Dict[str, Any],
                                config: Dict[str, Any]) -> Dict[str, Any]:
-    """为单个学生计算5个决策标签。
+    """为单个学生计算5个决策标签 + 学情画像标签。
 
     Args:
         student: 学生记录（扁平结构，含所有字段）
         config: 校区配置字典
 
     Returns:
-        包含5个决策标签的字典
+        包含5个决策标签和学情画像的字典
     """
     thresholds = config.get("决策标签阈值", {})
     rules = config.get("推荐规则", [])
@@ -120,6 +127,13 @@ def calculate_tags_for_student(student: Dict[str, Any],
     match_student["是否科技特色校"] = student.get("学校层次(科技特色)", "")
     recommended, reason = match_recommendation(match_student, rules)
 
+    # 6. 学情画像标签（8类，多标签共存，命中≥3个取前2个）
+    exam_levels_config = config.get("exam_levels", None)
+    # 将支付力写入student副本供profile推算使用
+    profile_student = dict(student)
+    profile_student["支付力"] = payment
+    profile_tags = calculate_student_profile(profile_student, exam_levels_config)
+
     return {
         "支付力": payment,
         "续费风险": risk,
@@ -127,6 +141,7 @@ def calculate_tags_for_student(student: Dict[str, Any],
         "跟进优先级": str(priority),
         "推荐产品方向": recommended,
         "推荐理由": reason,
+        "学情画像": profile_tags,
     }
 
 
@@ -170,7 +185,12 @@ def write_tags_xlsx(students: List[Dict[str, Any]],
         elif tag == "推荐产品方向" and "推荐产品方向" in headers:
             tag_col_map[tag] = headers.index("推荐产品方向") + 1
 
-    # 写入决策标签
+    # 找到学情画像列索引
+    profile_col_idx = None
+    if "学情画像" in headers:
+        profile_col_idx = headers.index("学情画像") + 1  # 1-based
+
+    # 写入决策标签和学情画像
     for row_idx, (student, tags) in enumerate(zip(students, tags_list), 2):
         if "支付力" in tag_col_map:
             ws.cell(row=row_idx, column=tag_col_map["支付力"], value=tags["支付力"])
@@ -183,6 +203,11 @@ def write_tags_xlsx(students: List[Dict[str, Any]],
             ws.cell(row=row_idx, column=tag_col_map["跟进优先级"], value=stars)
         if "推荐产品方向" in tag_col_map:
             ws.cell(row=row_idx, column=tag_col_map["推荐产品方向"], value=tags["推荐产品方向"])
+        # 学情画像（多标签用"、"分隔）
+        if profile_col_idx:
+            profile_tags = tags.get("学情画像", [])
+            profile_text = "、".join(profile_tags) if profile_tags else ""
+            ws.cell(row=row_idx, column=profile_col_idx, value=profile_text)
 
     # 应用条件格式
     for tag_col_name in ["支付力", "续费风险", "转介绍潜力"]:
@@ -233,9 +258,17 @@ def main():
     high_referral = sum(1 for t in tags_list if t["转介绍潜力"] == "高")
     pending_config = sum(1 for t in tags_list if t["推荐产品方向"] == "待配置")
 
+    # 学情画像分布统计（8类标签各命中几人）
+    profile_dist = {}
+    for tag in PROFILE_TAGS:
+        profile_dist[tag] = sum(1 for t in tags_list if tag in t.get("学情画像", []))
+    profile_hit_count = sum(1 for t in tags_list if t.get("学情画像", []))
+
     # 写入汇总表
     try:
         write_tags_xlsx(students, tags_list, args.input, args.output)
+        # 构建学情画像分布输出
+        profile_summary = {f"画像_{k}": v for k, v in profile_dist.items()}
         print_script_result(
             True,
             f"标签推算成功：{args.output}",
@@ -244,6 +277,8 @@ def main():
             高续费风险人数=high_risk,
             高转介绍潜力人数=high_referral,
             待配置推荐人数=pending_config,
+            学情画像命中人数=profile_hit_count,
+            **profile_summary,
         )
     except Exception as e:
         print_script_result(False, f"标签推算异常: {str(e)}")
