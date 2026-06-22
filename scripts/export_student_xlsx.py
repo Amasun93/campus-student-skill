@@ -22,7 +22,7 @@ from typing import Any, Dict, List
 # 添加scripts目录到路径，导入utils
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
-    A_FIELDS, B_FIELDS, C_FIELDS, D_FIELDS,
+    A_FIELDS, B_FIELDS, C_FIELDS, D_FIELDS, E_FIELDS,
     CONSULTANT_COLUMNS, TEACHER_COLUMNS, COMPLETION_COLUMNS,
     get_excel_styles, apply_header_style, calculate_completion,
     print_script_result,
@@ -62,6 +62,10 @@ def flatten_student_record(record: Dict[str, Any], role: str) -> Dict[str, str]:
         course = record.get("课程成果", {})
         for f in D_FIELDS:
             flat[f] = course.get(f, "") if course else ""
+
+    # E学员细节备注（顾问+老师均可补充）
+    for f in E_FIELDS:
+        flat[f] = record.get(f, "")
 
     return flat
 

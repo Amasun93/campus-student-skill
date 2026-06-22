@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
-    A_FIELDS, B_FIELDS, C_FIELDS, D_FIELDS,
+    A_FIELDS, B_FIELDS, C_FIELDS, D_FIELDS, E_FIELDS,
     SUMMARY_COLUMNS, CONFLICT_COLUMNS, CHANGELOG_COLUMNS, COMPLETION_COLUMNS,
     get_excel_styles, apply_header_style, apply_tag_conditional_format,
     format_conflict_cell, create_conflict_record, detect_conflict,
@@ -146,6 +146,7 @@ def merge_records(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
                 "家庭背景": dict(record.get("家庭背景", {})),
                 "在校情况": dict(record.get("在校情况", {})),
                 "课程成果": dict(record.get("课程成果", {})),
+                "学员细节备注": record.get("学员细节备注", ""),
                 "冲突标注": "",
                 "来源角色": [record.get("采集人角色", "")],
                 "来源文件": [record.get("采集来源", "")],
@@ -164,6 +165,16 @@ def merge_records(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
                 existing["年龄"] = record["年龄"]
             if not existing.get("校区") and record.get("所在校区"):
                 existing["校区"] = record.get("所在校区")
+
+            # 合并学员细节备注（自由文本，两边都有的话拼接，不冲突）
+            new_detail = (record.get("学员细节备注", "") or "").strip()
+            old_detail = (existing.get("学员细节备注", "") or "").strip()
+            if new_detail:
+                if not old_detail:
+                    existing["学员细节备注"] = new_detail
+                elif new_detail not in old_detail:
+                    # 拼接，标注来源
+                    existing["学员细节备注"] = f"[{role}补充] {new_detail} | {old_detail}"
 
             # 合并B/C/D字段，检测冲突
             for group_name, fields, source_data in [
