@@ -1,0 +1,121 @@
+%% 校区学员情况管理 Skill — 类图
+%% 架构师 高见远（Gao） v1.0
+
+classDiagram
+    class StudentRecord {
+        +String 姓名
+        +String 昵称
+        +String 年级
+        +String 年龄
+        +String 所在校区
+        +FamilyBackground 家庭背景
+        +SchoolStatus 在校情况
+        +CourseInfo 课程成果
+        +AISupplement AI补齐
+        +DecisionTags 决策标签
+        +String 采集人角色
+        +String 采集时间
+        +String 采集状态
+    }
+
+    class FamilyBackground {
+        +String 家长职业
+        +String 单位性质
+        +String 家庭结构
+        +String 教育氛围
+        +String 居住小区
+        +String 家长规划目标
+        +String 对AI认知度
+    }
+
+    class SchoolStatus {
+        +String 学校名称
+        +String 成绩水平
+        +String 性格特点
+        +String 兴趣偏好
+        +String 课堂表现
+        +String 同伴关系
+    }
+
+    class CourseInfo {
+        +String 已报名课程
+        +String 在读课程
+        +String 学习时长
+        +String 作品成果
+        +String 续费历史
+    }
+
+    class AISupplement {
+        +String 小区房价段
+        +String 住户画像
+        +String 周边学校
+        +String 学校层次
+        +String 是否科技特色校
+        +String 周边竞品
+        +String 家庭消费力评估
+        +String 补齐状态
+        +String 补齐时间
+    }
+
+    class DecisionTags {
+        +String 支付力等级
+        +String 续费风险
+        +String 转介绍潜力
+        +String 跟进优先级
+        +String 推荐产品方向
+        +String 推算时间
+    }
+
+    class CampusConfig {
+        +String 校区
+        +List~String~ 产品列表
+        +ThresholdConfig 决策标签阈值
+        +List~RecommendRule~ 推荐规则
+        +ReportPreference 报告偏好
+    }
+
+    class ThresholdConfig {
+        +Map 支付力
+        +Map 续费风险
+        +Map 转介绍潜力
+        +String 跟进优先级
+    }
+
+    class RecommendRule {
+        +Map 条件
+        +String 推荐课程
+        +String 理由
+    }
+
+    class ReportPreference {
+        +Boolean HTML报告
+        +List~String~ 需要哪几页
+    }
+
+    class ConflictRecord {
+        +String 姓名
+        +String 字段名
+        +String 顾问值
+        +String 老师值
+        +String 状态
+    }
+
+    class CollectionCache {
+        +String 校区
+        +String 采集人角色
+        +String 采集人姓名
+        +List~String~ 名单
+        +List~StudentRecord~ 已采集记录
+        +String 最后更新时间
+    }
+
+    StudentRecord --> FamilyBackground
+    StudentRecord --> SchoolStatus
+    StudentRecord --> CourseInfo
+    StudentRecord --> AISupplement
+    StudentRecord --> DecisionTags
+    CampusConfig --> ThresholdConfig
+    CampusConfig --> RecommendRule
+    CampusConfig --> ReportPreference
+    CollectionCache --> StudentRecord : contains
+    StudentRecord ..> ConflictRecord : merge时产生
