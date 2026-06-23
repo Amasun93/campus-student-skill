@@ -3,3 +3,6 @@ __pycache__/
 *.pyo
 .DS_Store
 Thumbs.db
+.tmp_v18*/
+.tmp*_qa/
+*.pyc

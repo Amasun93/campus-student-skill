@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  📖 <a href="docs/字段说明.md">字段说明</a> · 🎬 <a href="docs/walkthrough.md">对话实录</a> · 📐 <a href="ARCHITECTURE.md">架构设计</a> · 📋 <a href="PRD.md">PRD</a> · ⚡ <a href="#安装">快速安装</a>
+  📖 <a href="docs/字段说明.md">字段说明</a> · 🎬 <a href="docs/walkthrough.md">对话实录</a> · 📋 <a href="PRD.md">需求文档</a> · ⚡ <a href="#安装">快速安装</a>
 </p>
 
 ---
@@ -138,8 +138,7 @@ campus-student-skill/
 ├── SKILL.md                      # Skill主体（workbuddy加载执行的指令）
 ├── README.md                     # 本文件
 ├── LICENSE                       # MIT协议
-├── PRD.md                        # 产品需求文档
-├── ARCHITECTURE.md               # 架构设计方案
+├── PRD.md                        # 产品需求文档（v1.3，待更新）
 ├── scripts/                      # Python脚本
 │   ├── export_student_xlsx.py    # 采集端：JSON→导出xlsx
 │   ├── merge_xlsx.py             # 汇总端：多表合并
@@ -151,11 +150,12 @@ campus-student-skill/
 │   ├── campus_config_template.json # 校区配置JSON模板
 │   └── html_report_template.html # HTML报告模板
 ├── 示例配置/                      # 化名样例数据（开箱即用）
-│   ├── 校区配置_示例.json         # 校长配置样例
-│   ├── 个人学员表_顾问_示例.xlsx  # 顾问采集结果样例
-│   ├── 个人学员表_老师_示例.xlsx  # 老师采集结果样例
-│   ├── 合并汇总表_示例.xlsx       # 校长汇总结果样例
-│   └── 校区分析报告_示例.html     # HTML可视化报告样例
+│   ├── 校区配置_示范校区.json
+│   ├── 顾问学员表_示范校区.xlsx
+│   ├── 老师学员表_示范校区.xlsx
+│   ├── 合并汇总表_示范校区.xlsx
+│   ├── 带标签汇总表_示范校区.xlsx
+│   └── 校区分析报告_示范校区.html
 └── docs/                          # 文档
     ├── 字段说明.md
     ├── 话术设计说明.md
