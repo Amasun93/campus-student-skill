@@ -32,12 +32,78 @@ from utils import (
     A_FIELDS, B_FIELDS, B2_FIELDS, C_FIELDS, D_FIELDS, D2_FIELDS,
     E_FIELDS, CROSS_FIELDS,
     SUMMARY_COLUMNS, CONFLICT_COLUMNS, CHANGELOG_COLUMNS, COMPLETION_COLUMNS,
+    RELATION_MAIN_FIELDS, RESPONSIBILITY_DETAIL_COLUMNS,
     get_excel_styles, apply_header_style, apply_tag_conditional_format,
     format_conflict_cell, format_three_way_conflict,
     create_conflict_record, detect_conflict,
     get_match_key, find_student_in_list, calculate_completion,
+    build_relation_snapshot, normalize_course_segment,
     get_timestamp, print_script_result,
+    calculate_credibility,
 )
+
+
+def _cell_to_text(value: Any) -> str:
+    """将Excel单元格值安全转为字符串。"""
+    return str(value).strip() if value is not None else ""
+
+
+def read_responsibility_details(file_path: str) -> List[Dict[str, str]]:
+    """读取个人表或汇总表中的责任关系明细sheet。
+
+    v1.7旧文件没有该sheet时返回空列表，保证合并兼容。
+
+    Args:
+        file_path: xlsx文件路径。
+
+    Returns:
+        责任关系明细行列表。
+    """
+    from openpyxl import load_workbook
+
+    try:
+        wb = load_workbook(file_path, data_only=True)
+    except Exception:
+        return []
+    if "责任关系明细" not in wb.sheetnames:
+        return []
+
+    ws = wb["责任关系明细"]
+    headers = [_cell_to_text(cell.value) for cell in ws[1]]
+    details: List[Dict[str, str]] = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        row_dict: Dict[str, str] = {column: "" for column in RESPONSIBILITY_DETAIL_COLUMNS}
+        for idx, header in enumerate(headers):
+            if not header:
+                continue
+            row_dict[header] = _cell_to_text(row[idx]) if idx < len(row) else ""
+        if not row_dict.get("来源文件"):
+            row_dict["来源文件"] = os.path.basename(file_path)
+        if any(row_dict.get(column, "") for column in ["姓名", "关系类型", "负责人姓名", "课程段", "关系备注"]):
+            details.append(row_dict)
+    return details
+
+
+def dedupe_responsibility_details(details: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """按规格键去重责任关系明细。
+
+    去重键：姓名+年级+关系类型+关系状态+负责人姓名+课程段+来源文件。
+    """
+    seen = set()
+    result: List[Dict[str, str]] = []
+    for detail in details:
+        row = {column: _cell_to_text(detail.get(column, "")) for column in RESPONSIBILITY_DETAIL_COLUMNS}
+        row["课程段"] = normalize_course_segment(row.get("课程段", ""))
+        key = (
+            row.get("姓名", ""), row.get("年级", ""), row.get("关系类型", ""),
+            row.get("关系状态", ""), row.get("负责人姓名", ""), row.get("课程段", ""),
+            row.get("来源文件", ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(row)
+    return result
 
 
 def read_personal_xlsx(file_path: str) -> List[Dict[str, Any]]:
@@ -75,6 +141,13 @@ def read_personal_xlsx(file_path: str) -> List[Dict[str, Any]]:
     # 判断版本：有"学校名称"列=老师版，有"家长职业"无"学校名称"=顾问版
     is_teacher = "学校名称" in headers
     role = "老师" if is_teacher else "顾问"
+
+    # 读取责任关系明细sheet，按姓名+年级挂到学生记录；v1.7旧文件无sheet时为空。
+    detail_rows = read_responsibility_details(file_path)
+    detail_map: Dict[Tuple[str, str], List[Dict[str, str]]] = {}
+    for detail in detail_rows:
+        detail_key = get_match_key(detail.get("姓名", ""), detail.get("年级", ""))
+        detail_map.setdefault(detail_key, []).append(detail)
 
     # 读取数据行
     records: List[Dict[str, Any]] = []
@@ -132,6 +205,12 @@ def read_personal_xlsx(file_path: str) -> List[Dict[str, Any]]:
         # E学员细节备注
         record["学员细节备注"] = row_dict.get("学员细节备注", "")
 
+        # v1.8.0 主表责任关系快照字段与明细关系
+        for f in RELATION_MAIN_FIELDS:
+            record[f] = row_dict.get(f, "")
+        record_key = get_match_key(record.get("姓名", ""), record.get("年级", ""))
+        record["责任关系"] = detail_map.get(record_key, [])
+
         records.append(record)
 
     return records
@@ -173,6 +252,8 @@ def merge_records(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
                 "课程成果": dict(record.get("课程成果", {})),
                 "学情履历": dict(record.get("学情履历", {})),
                 "家庭背景_老师补充": record.get("家庭背景_老师补充", ""),
+                "责任关系": list(record.get("责任关系", [])),
+                "关系快照": {f: record.get(f, "") for f in RELATION_MAIN_FIELDS},
                 "学员细节备注": record.get("学员细节备注", ""),
                 "冲突标注": "",
                 "来源角色": [record.get("采集人角色", "")],
@@ -192,6 +273,16 @@ def merge_records(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
                 existing["年龄"] = record["年龄"]
             if not existing.get("校区") and record.get("所在校区"):
                 existing["校区"] = record.get("所在校区")
+
+            # 合并责任关系明细与主表快照字段
+            existing_relations = existing.setdefault("责任关系", [])
+            existing_relations.extend(record.get("责任关系", []))
+            existing["责任关系"] = dedupe_responsibility_details(existing_relations)
+            relation_snapshot = existing.setdefault("关系快照", {f: "" for f in RELATION_MAIN_FIELDS})
+            for f in RELATION_MAIN_FIELDS:
+                new_relation_value = (record.get(f, "") or "").strip()
+                if new_relation_value and not relation_snapshot.get(f):
+                    relation_snapshot[f] = new_relation_value
 
             # 合并学员细节备注（自由文本，两边都有的话拼接，不冲突）
             new_detail = (record.get("学员细节备注", "") or "").strip()
@@ -256,6 +347,15 @@ def merge_records(all_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any
                         else:
                             existing["冲突标注"] = f"冲突字段: {field}"
 
+    for student in merged.values():
+        student["责任关系"] = dedupe_responsibility_details(student.get("责任关系", []))
+        computed_snapshot = build_relation_snapshot(student.get("责任关系", []), student)
+        manual_snapshot = student.get("关系快照", {}) if isinstance(student.get("关系快照", {}), dict) else {}
+        student["关系快照"] = {
+            field: computed_snapshot.get(field, "") or manual_snapshot.get(field, "")
+            for field in RELATION_MAIN_FIELDS
+        }
+
     return list(merged.values()), conflicts
 
 
@@ -295,7 +395,7 @@ def write_summary_xlsx(merged_students: List[Dict[str, Any]],
                        completions: List[Dict[str, Any]],
                        changelogs: List[Dict[str, Any]],
                        output_path: str) -> bool:
-    """将合并后的数据写入汇总表.xlsx（含4个sheet）。
+    """将合并后的数据写入汇总表.xlsx（含5个sheet）。
 
     Args:
         merged_students: 合并后的学生列表
@@ -338,7 +438,25 @@ def write_summary_xlsx(merged_students: List[Dict[str, Any]],
             col_idx = SUMMARY_COLUMNS.index(tag_col) + 1
             apply_tag_conditional_format(ws1, col_idx, len(merged_students))
 
-    # ===== Sheet2: 冲突清单 =====
+    # ===== Sheet2: 责任关系明细 =====
+    ws_rel = wb.create_sheet("责任关系明细")
+    for col_idx, col_name in enumerate(RESPONSIBILITY_DETAIL_COLUMNS, 1):
+        ws_rel.cell(row=1, column=col_idx, value=col_name)
+    apply_header_style(ws_rel, row=1, col_count=len(RESPONSIBILITY_DETAIL_COLUMNS))
+
+    relation_rows: List[Dict[str, str]] = []
+    for student in merged_students:
+        relation_rows.extend(student.get("责任关系", []))
+    relation_rows = dedupe_responsibility_details(relation_rows)
+    for row_idx, relation in enumerate(relation_rows, 2):
+        for col_idx, col_name in enumerate(RESPONSIBILITY_DETAIL_COLUMNS, 1):
+            ws_rel.cell(row=row_idx, column=col_idx, value=relation.get(col_name, ""))
+
+    for col_idx in range(1, len(RESPONSIBILITY_DETAIL_COLUMNS) + 1):
+        ws_rel.column_dimensions[get_column_letter(col_idx)].width = 16
+    ws_rel.freeze_panes = "A2"
+
+    # ===== Sheet3: 冲突清单 =====
     ws2 = wb.create_sheet("冲突清单")
     for col_idx, col_name in enumerate(CONFLICT_COLUMNS, 1):
         ws2.cell(row=1, column=col_idx, value=col_name)
@@ -351,7 +469,7 @@ def write_summary_xlsx(merged_students: List[Dict[str, Any]],
     for col_idx in range(1, len(CONFLICT_COLUMNS) + 1):
         ws2.column_dimensions[get_column_letter(col_idx)].width = 16
 
-    # ===== Sheet3: 变更记录 =====
+    # ===== Sheet4: 变更记录 =====
     ws3 = wb.create_sheet("变更记录")
     for col_idx, col_name in enumerate(CHANGELOG_COLUMNS, 1):
         ws3.cell(row=1, column=col_idx, value=col_name)
@@ -364,7 +482,7 @@ def write_summary_xlsx(merged_students: List[Dict[str, Any]],
     for col_idx in range(1, len(CHANGELOG_COLUMNS) + 1):
         ws3.column_dimensions[get_column_letter(col_idx)].width = 16
 
-    # ===== Sheet4: 采集完成率 =====
+    # ===== Sheet5: 采集完成率 =====
     ws4 = wb.create_sheet("采集完成率")
     for col_idx, col_name in enumerate(COMPLETION_COLUMNS, 1):
         ws4.cell(row=1, column=col_idx, value=col_name)
@@ -384,12 +502,14 @@ def write_summary_xlsx(merged_students: List[Dict[str, Any]],
 
 
 def flatten_merged_student(student: Dict[str, Any]) -> Dict[str, str]:
-    """将合并后的学生记录扁平化为汇总表列对应的字典（v1.7.0共55列）。
+    """将合并后的学生记录扁平化为汇总表列对应的字典（v1.8.1共59列）。
 
     按SUMMARY_COLUMNS顺序输出，包括：
-    - A基础标识(4) + B1家庭背景(9) + B2销售漏斗(7进汇总，含B2.09顾问侧续费历史) + C在校情况(6)
-    + D1课程成果(5) + D2学情履历(8进汇总) + E(1) + 三路信源(1)
-    + 冲突标注(1) + AI补齐(7) + 决策标签(5) + 学情画像(1)
+    - A基础标识(3，v1.8.1移除年龄) + B1家庭背景(7，v1.8.1合并家长职业+单位性质→家长职业与单位，移除对AI认知度)
+    + B2销售漏斗(7，含B2.09顾问侧续费历史) + C在校情况(5，v1.8.1移除同伴关系)
+    + D1课程成果(5) + D2学情履历(8) + E(1) + 三路信源(1)
+    + G责任关系(7) + 冲突标注(1) + 可信度标记(1,v1.8.1新增)
+    + AI补齐(7) + 决策标签(5) + 学情画像(1)
 
     Args:
         student: 合并后的学生记录
@@ -399,40 +519,54 @@ def flatten_merged_student(student: Dict[str, Any]) -> Dict[str, str]:
     """
     flat: Dict[str, str] = {}
 
-    # A基础标识（4列）
+    # A基础标识（3列，v1.8.1移除"年龄"——保留student["年龄"]供年龄段计算，不输出到汇总表）
     flat["校区"] = student.get("校区", "")
     flat["姓名"] = student.get("姓名", "")
     flat["年级"] = student.get("年级", "")
-    flat["年龄"] = student.get("年龄", "")
 
-    # B1家庭背景（9列）
-    family = student.get("家庭背景", {})
-    for f in B_FIELDS:
-        flat[f] = family.get(f, "") if family else ""
+    # B1家庭背景（7列进汇总；v1.8.1合并家长职业+单位性质→家长职业与单位，移除对AI认知度）
+    family = student.get("家庭背景", {}) or {}
+    # 家长职业与单位合并
+    occupation = (family.get("家长职业", "") or "").strip()
+    company_type = (family.get("单位性质", "") or "").strip()
+    if occupation and company_type:
+        flat["家长职业与单位"] = f"{occupation}/{company_type}"
+    elif occupation:
+        flat["家长职业与单位"] = occupation
+    elif company_type:
+        flat["家长职业与单位"] = company_type
+    else:
+        flat["家长职业与单位"] = ""
+    # 其余B1字段（排除家长职业、单位性质、对AI认知度）
+    b1_summary_fields = ["家庭结构", "教育氛围", "居住小区",
+                         "家长规划目标", "家长教育取向", "家长竞赛认知"]
+    for f in b1_summary_fields:
+        flat[f] = family.get(f, "")
 
     # B2销售漏斗（7列进汇总；最初兴趣点/介绍过的产品不进汇总；v1.7.0新增B2.09顾问侧续费历史）
-    funnel = student.get("销售漏斗", {})
+    funnel = student.get("销售漏斗", {}) or {}
     b2_summary_fields = ["客户来源", "对接次数", "累计跟进时长", "当前阶段", "堵点", "顾问复盘",
                          "顾问侧续费历史"]
     for f in b2_summary_fields:
-        flat[f] = funnel.get(f, "") if funnel else ""
+        flat[f] = funnel.get(f, "")
 
-    # C在校情况（6列）
-    school = student.get("在校情况", {})
-    for f in C_FIELDS:
-        flat[f] = school.get(f, "") if school else ""
+    # C在校情况（5列；v1.8.1移除"同伴关系"）
+    school = student.get("在校情况", {}) or {}
+    c_summary_fields = ["学校名称", "成绩水平", "性格特点", "兴趣偏好", "课堂表现"]
+    for f in c_summary_fields:
+        flat[f] = school.get(f, "")
 
     # D1课程成果（5列）
-    course = student.get("课程成果", {})
+    course = student.get("课程成果", {}) or {}
     for f in D_FIELDS:
-        flat[f] = course.get(f, "") if course else ""
+        flat[f] = course.get(f, "")
 
     # D2学情履历（8列进汇总；入学时年级/当前年级/过往奖项/特长兴趣/学生状态观察不进汇总）
-    diary = student.get("学情履历", {})
+    diary = student.get("学情履历", {}) or {}
     d2_summary_fields = ["入学时间", "在读时长", "等级考", "白名单比赛", "老师侧支付力",
                          "家长关注度", "家长新期待", "老师复盘"]
     for f in d2_summary_fields:
-        flat[f] = diary.get(f, "") if diary else ""
+        flat[f] = diary.get(f, "")
 
     # E学员细节备注（1列）
     flat["学员细节备注"] = student.get("学员细节备注", "")
@@ -440,8 +574,19 @@ def flatten_merged_student(student: Dict[str, Any]) -> Dict[str, str]:
     # 三路信源（1列）
     flat["家庭背景(老师补充)"] = student.get("家庭背景_老师补充", "")
 
+    # G责任关系与筛选标签（7列）
+    relation_snapshot = student.get("关系快照", {})
+    if not isinstance(relation_snapshot, dict):
+        relation_snapshot = {}
+    computed_snapshot = build_relation_snapshot(student.get("责任关系", []), flat)
+    for f in RELATION_MAIN_FIELDS:
+        flat[f] = computed_snapshot.get(f, "") or relation_snapshot.get(f, "") or student.get(f, "") or ""
+
     # 合并生成（1列）
     flat["冲突标注"] = student.get("冲突标注", "")
+
+    # v1.8.1 可信度标记（1列，新增）
+    flat["可信度标记"] = calculate_credibility(student, flat)
 
     # AI补齐字段（7列，合并阶段为空，后续AI补齐场景填入）
     flat["学校层次(科技特色)"] = ""
@@ -509,6 +654,8 @@ def incremental_merge(new_records: List[Dict[str, Any]],
                 "课程成果": dict(new_rec.get("课程成果", {})),
                 "学情履历": dict(new_rec.get("学情履历", {})),
                 "家庭背景_老师补充": new_rec.get("家庭背景_老师补充", ""),
+                "责任关系": list(new_rec.get("责任关系", [])),
+                "关系快照": {f: new_rec.get(f, "") for f in RELATION_MAIN_FIELDS},
                 "学员细节备注": new_rec.get("学员细节备注", ""),
                 "冲突标注": "",
                 "来源角色": [new_rec.get("采集人角色", "")],
@@ -566,6 +713,25 @@ def incremental_merge(new_records: List[Dict[str, Any]],
                             "变更来源": new_rec.get("采集来源", ""),
                         })
 
+            # v1.8.0 责任关系明细与主表快照合并
+            existing_relations = existing.setdefault("责任关系", [])
+            existing_relations.extend(new_rec.get("责任关系", []))
+            existing["责任关系"] = dedupe_responsibility_details(existing_relations)
+            relation_snapshot = existing.setdefault("关系快照", {f: "" for f in RELATION_MAIN_FIELDS})
+            for f in RELATION_MAIN_FIELDS:
+                new_relation_value = (new_rec.get(f, "") or "").strip()
+                old_relation_value = (relation_snapshot.get(f, "") or "").strip()
+                if new_relation_value and new_relation_value != old_relation_value:
+                    relation_snapshot[f] = old_relation_value or new_relation_value
+                    changelogs.append({
+                        "姓名": name,
+                        "变更时间": get_timestamp(),
+                        "变更字段": f,
+                        "旧值": old_relation_value or "(空)",
+                        "新值": new_relation_value,
+                        "变更来源": new_rec.get("采集来源", ""),
+                    })
+
             # B_cross_teacher 变更检测
             new_cross = (new_rec.get("家庭背景_老师补充", "") or "").strip()
             old_cross = (existing.get("家庭背景_老师补充", "") or "").strip()
@@ -591,6 +757,15 @@ def incremental_merge(new_records: List[Dict[str, Any]],
                         "变更来源": new_rec.get("采集来源", ""),
                     })
 
+    for student in updated:
+        student["责任关系"] = dedupe_responsibility_details(student.get("责任关系", []))
+        computed_snapshot = build_relation_snapshot(student.get("责任关系", []), student)
+        manual_snapshot = student.get("关系快照", {}) if isinstance(student.get("关系快照", {}), dict) else {}
+        student["关系快照"] = {
+            field: computed_snapshot.get(field, "") or manual_snapshot.get(field, "") or student.get(field, "") or ""
+            for field in RELATION_MAIN_FIELDS
+        }
+
     return updated, conflicts, changelogs
 
 
@@ -610,6 +785,12 @@ def read_summary_xlsx(file_path: str) -> List[Dict[str, Any]]:
     wb = load_workbook(file_path, data_only=True)
     if "学员汇总" not in wb.sheetnames:
         return []
+
+    summary_details = read_responsibility_details(file_path)
+    detail_map: Dict[Tuple[str, str], List[Dict[str, str]]] = {}
+    for detail in summary_details:
+        detail_key = get_match_key(detail.get("姓名", ""), detail.get("年级", ""))
+        detail_map.setdefault(detail_key, []).append(detail)
 
     ws = wb["学员汇总"]
     headers = []
@@ -636,6 +817,8 @@ def read_summary_xlsx(file_path: str) -> List[Dict[str, Any]]:
             "课程成果": {},
             "学情履历": {},
             "家庭背景_老师补充": row_dict.get("家庭背景(老师补充)", ""),
+            "责任关系": detail_map.get(get_match_key(row_dict.get("姓名", ""), row_dict.get("年级", "")), []),
+            "关系快照": {f: row_dict.get(f, "") for f in RELATION_MAIN_FIELDS},
             "学员细节备注": row_dict.get("学员细节备注", ""),
             "冲突标注": row_dict.get("冲突标注", ""),
             "来源角色": [],

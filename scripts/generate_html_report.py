@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
     SUMMARY_COLUMNS, PROFILE_TAGS, PROFILE_TAG_PRIORITY,
     PROFILE_COURSE_MAP,
+    SUBJECTIVE_FIELDS, EXCLUDED_FROM_UNCERTAINTY,
     match_course_products, generate_course_recommendation,
     get_timestamp, print_script_result,
 )
@@ -195,6 +196,13 @@ def build_report_data(students: List[Dict[str, Any]], campus: str,
             "跟进优先级": parse_priority_to_int(s.get("跟进优先级", "")),
             "推荐方向": s.get("推荐产品方向", ""),
             "推荐理由": s.get("推荐理由", "") if "推荐理由" in s else "",
+            # v1.8 责任关系与筛选标签字段
+            "当前顾问": s.get("当前顾问", ""),
+            "历史顾问": s.get("历史顾问", ""),
+            "交接状态": s.get("交接状态", ""),
+            "归属老师标签": s.get("归属老师标签", ""),
+            "课程段标签": s.get("课程段标签", ""),
+            "年龄段标签": s.get("年龄段标签", ""),
             # B2销售漏斗字段
             "客户来源": s.get("客户来源", ""),
             "当前阶段": s.get("当前阶段", ""),
@@ -207,6 +215,9 @@ def build_report_data(students: List[Dict[str, Any]], campus: str,
             "白名单比赛": s.get("白名单比赛", ""),
             "老师侧支付力": s.get("老师侧支付力", ""),
             "家长关注度": s.get("家长关注度", ""),
+            # v1.8.1 新增字段
+            "可信度标记": s.get("可信度标记", ""),
+            "年龄": s.get("年龄", ""),
         })
 
     # 统计计算
@@ -214,6 +225,11 @@ def build_report_data(students: List[Dict[str, Any]], campus: str,
     risk_counter = Counter(s.get("续费风险", "") for s in students)
     referral_counter = Counter(s.get("转介绍潜力", "") for s in students)
     recommend_counter = Counter(s.get("推荐产品方向", "") for s in students)
+    course_segment_counter = Counter((s.get("课程段标签", "") or "未填写").strip() or "未填写" for s in students)
+    teacher_owner_counter = Counter((s.get("归属老师标签", "") or "未填写").strip() or "未填写" for s in students)
+    advisor_counter = Counter((s.get("当前顾问", "") or "未填写").strip() or "未填写" for s in students)
+    handoff_counter = Counter((s.get("交接状态", "") or "未填写").strip() or "未填写" for s in students)
+    age_segment_counter = Counter((s.get("年龄段标签", "") or "未填写").strip() or "未填写" for s in students)
 
     # 高净值占比
     high_payment_count = payment_counter.get("高", 0)
@@ -264,6 +280,13 @@ def build_report_data(students: List[Dict[str, Any]], campus: str,
         tag_dist.append({"标签": f"转介绍潜力-{level}", "人数": referral_counter.get(level, 0)})
 
     # ===== 新增统计（页2）=====
+
+    # 0. v1.8.0 责任关系与筛选标签摘要
+    course_segment_dist = [{"课程段": k, "人数": v} for k, v in course_segment_counter.most_common()]
+    teacher_owner_dist = [{"老师": k, "人数": v} for k, v in teacher_owner_counter.most_common()]
+    advisor_dist = [{"顾问": k, "人数": v} for k, v in advisor_counter.most_common()]
+    handoff_dist = [{"交接状态": k, "人数": v} for k, v in handoff_counter.most_common()]
+    age_segment_dist = [{"年龄段": k, "人数": v} for k, v in age_segment_counter.most_common()]
 
     # 1. 渠道来源分布（客户来源 Counter）
     channel_counter = Counter()
@@ -430,6 +453,96 @@ def build_report_data(students: List[Dict[str, Any]], campus: str,
         # 按推荐学员数降序排序
         course_level_recommend.sort(key=lambda x: -x["推荐学员数"])
 
+    # ===== v1.8.1 新增统计：数据质量与责任全景 =====
+
+    # 主观字段完成率（遍历SUBJECTIVE_FIELDS对应的主表列，统计非空比）
+    subjective_total = len(SUBJECTIVE_FIELDS) * total if total > 0 else 1
+    subjective_non_empty = 0
+    for s in students:
+        for field in SUBJECTIVE_FIELDS:
+            val = (s.get(field, "") or "").strip()
+            if val:
+                subjective_non_empty += 1
+    subjective_completion_rate = f"{(subjective_non_empty / subjective_total * 100):.0f}%" if subjective_total > 0 else "0%"
+    subjective_completion_float = round(subjective_non_empty / subjective_total * 100, 1) if subjective_total > 0 else 0.0
+
+    # 客观字段完成率（A基础标识+D1课程成果+D2客观字段）
+    objective_fields = ["校区", "姓名", "年级"]  # A基础标识（去掉年龄因为已移除）
+    objective_fields.extend(["已报名课程", "在读课程", "学习时长", "作品成果", "续费历史"])  # D1
+    objective_fields.extend(["入学时间", "在读时长", "等级考", "白名单比赛", "老师侧支付力",
+                              "家长关注度", "家长新期待", "老师复盘"])  # D2
+    obj_total = len(objective_fields) * total if total > 0 else 1
+    obj_non_empty = 0
+    for s in students:
+        for field in objective_fields:
+            val = (s.get(field, "") or "").strip()
+            if val:
+                obj_non_empty += 1
+    objective_completion_rate = f"{(obj_non_empty / obj_total * 100):.0f}%" if obj_total > 0 else "0%"
+    objective_completion_float = round(obj_non_empty / obj_total * 100, 1) if obj_total > 0 else 0.0
+
+    # 可信度分布 Counter
+    credibility_counter = Counter((s.get("可信度标记", "") or "未标记").strip() or "未标记" for s in students)
+    credibility_dist = [
+        {"可信度": level, "人数": credibility_counter.get(level, 0)}
+        for level in ["高可信度", "中可信度", "低可信度", "待验证", "未标记"]
+    ]
+
+    # 冲突统计
+    conflict_students = [s for s in students if (s.get("冲突标注", "") or "").strip()]
+    conflict_field_count = 0
+    for s in conflict_students:
+        conflict_text = (s.get("冲突标注", "") or "").strip()
+        # 格式如 "冲突字段: 成绩水平; 课堂表现"
+        if "冲突字段:" in conflict_text:
+            fields_part = conflict_text.replace("冲突字段:", "").strip()
+            conflict_field_count += len([f for f in fields_part.split(";") if f.strip()])
+        else:
+            conflict_field_count += 1
+    conflict_stats = {
+        "冲突字段总数": conflict_field_count,
+        "涉及学生数": len(conflict_students),
+        "冲突学生列表": [
+            {"姓名": s.get("姓名", ""), "年级": s.get("年级", ""),
+             "冲突标注": s.get("冲突标注", "")}
+            for s in conflict_students[:20]  # 最多20条
+        ],
+    }
+
+    # 待确认汇总列表（可信度=待验证 或 低可信度 的学生）
+    pending_list = []
+    for s in students:
+        cred = (s.get("可信度标记", "") or "").strip()
+        if cred in ("待验证", "低可信度"):
+            pending_list.append({
+                "姓名": s.get("姓名", ""),
+                "年级": s.get("年级", ""),
+                "校区": s.get("校区", campus),
+                "可信度标记": cred,
+                "冲突标注": s.get("冲突标注", ""),
+            })
+
+    # 字段完成率明细（逐字段非空占比，含所有SUMMARY_COLUMNS中的信息字段）
+    field_completion_detail = []
+    info_columns = [c for c in SUMMARY_COLUMNS if c not in (
+        "校区", "姓名", "年级", "冲突标注", "可信度标记",
+        "学校层次(科技特色)", "科技特色详情", "小区房价段", "住户画像",
+        "周边竞品", "家庭消费力", "推荐话术素材",
+        "支付力", "续费风险", "转介绍潜力", "跟进优先级", "推荐产品方向", "学情画像",
+        "年龄段标签", "交接状态",
+    )]
+    for field in info_columns:
+        non_empty = sum(1 for s in students if (s.get(field, "") or "").strip())
+        rate = f"{(non_empty / total * 100):.0f}%" if total > 0 else "0%"
+        field_completion_detail.append({"字段": field, "非空人数": non_empty, "完成率": rate})
+
+    # 主观字段完成率明细（用于柱状图）
+    subjective_field_detail = []
+    for field in SUBJECTIVE_FIELDS:
+        non_empty = sum(1 for s in students if (s.get(field, "") or "").strip())
+        rate = round(non_empty / total * 100, 1) if total > 0 else 0.0
+        subjective_field_detail.append({"字段": field, "非空人数": non_empty, "完成率": rate})
+
     # 组装报告数据
     report_data = {
         "生成时间": get_timestamp(),
@@ -445,6 +558,11 @@ def build_report_data(students: List[Dict[str, Any]], campus: str,
             "推荐分布": recommend_dist,
             "决策标签分布": tag_dist,
             # 页2新增统计
+            "课程段分布": course_segment_dist,
+            "老师归属分布": teacher_owner_dist,
+            "顾问分布": advisor_dist,
+            "交接状态分布": handoff_dist,
+            "年龄段分布": age_segment_dist,
             "渠道来源分布": channel_dist,
             "新签阶段漏斗": funnel_dist,
             "学情画像标签分布": profile_dist,
@@ -456,6 +574,16 @@ def build_report_data(students: List[Dict[str, Any]], campus: str,
             "按家长关注度推荐": attention_recommend,
             # v1.7.0新增：课程级精准推荐（课程产品库有数据时，否则为空列表→降级方向级）
             "课程级推荐": course_level_recommend,
+            # v1.8.1 新增：数据质量与责任全景（页4/页5）
+            "主观字段完成率": subjective_completion_rate,
+            "主观字段完成率数值": subjective_completion_float,
+            "客观字段完成率": objective_completion_rate,
+            "客观字段完成率数值": objective_completion_float,
+            "可信度分布": credibility_dist,
+            "冲突统计": conflict_stats,
+            "待确认汇总": pending_list,
+            "字段完成率明细": field_completion_detail,
+            "主观字段完成率明细": subjective_field_detail,
         }
     }
 

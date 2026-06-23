@@ -178,8 +178,8 @@ body {
   }
   .nav-tab {
     flex: 1;
-    padding: 8px 4px;
-    font-size: 13px;
+    padding: 6px 2px;
+    font-size: 11px;
     border-radius: 0;
     text-align: center;
     display: flex;
@@ -270,6 +270,8 @@ body {
     <button class="nav-tab active" onclick="showPage('page1')">全员表格</button>
     <button class="nav-tab" onclick="showPage('page2')">校区分析</button>
     <button class="nav-tab" onclick="showPage('page3')">产品推荐</button>
+    <button class="nav-tab" onclick="showPage('page4')">责任全景</button>
+    <button class="nav-tab" onclick="showPage('page5')">数据质量</button>
   </div>
 </nav>
 
@@ -279,7 +281,7 @@ body {
 <div class="page active" id="page1">
   <div class="page-header">
     <h1>全员学员表格</h1>
-    <div class="subtitle">支持按校区/年级/支付力/风险等筛选排序</div>
+    <div class="subtitle">支持按校区/年级/课程段/老师/当前顾问/交接状态等筛选排序</div>
   </div>
   <div class="card">
     <div class="filter-bar">
@@ -288,6 +290,11 @@ body {
       <select id="filter-grade" onchange="applyFilters()"><option value="">全部年级</option></select>
       <select id="filter-payment" onchange="applyFilters()"><option value="">全部支付力</option></select>
       <select id="filter-risk" onchange="applyFilters()"><option value="">全部风险</option></select>
+      <select id="filter-course-segment" onchange="applyFilters()"><option value="">全部课程段</option></select>
+      <select id="filter-teacher-owner" onchange="applyFilters()"><option value="">全部老师</option></select>
+      <select id="filter-advisor" onchange="applyFilters()"><option value="">全部当前顾问</option></select>
+      <select id="filter-handoff" onchange="applyFilters()"><option value="">全部交接状态</option></select>
+      <select id="filter-credibility" onchange="applyFilters()"><option value="">全部可信度</option></select>
       <input type="text" id="filter-name" placeholder="搜索姓名..." oninput="applyFilters()">
     </div>
     <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
@@ -360,6 +367,37 @@ body {
     <div class="css-bar-chart" id="css-tags" style="display:none;"></div>
   </div>
 
+  <!-- v1.8.0：责任与标签摘要 -->
+  <div class="card">
+    <div class="card-title">责任与标签摘要</div>
+    <div class="stats-grid" id="relation-summary-cards"></div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <div class="card-title">课程段分布</div>
+      <canvas id="courseSegmentChart"></canvas>
+      <div class="css-bar-chart" id="courseSegmentBarChart"></div>
+    </div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <div class="card-title">老师归属分布</div>
+      <canvas id="teacherOwnerChart"></canvas>
+      <div class="css-bar-chart" id="teacherOwnerBarChart"></div>
+    </div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <div class="card-title">当前顾问分布</div>
+      <canvas id="advisorChart"></canvas>
+      <div class="css-bar-chart" id="advisorBarChart"></div>
+    </div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:12px;">
+      <div class="card-title">交接状态分布</div>
+      <canvas id="handoffChart"></canvas>
+      <div class="css-bar-chart" id="handoffBarChart"></div>
+    </div>
+    <div class="chart-container" style="box-shadow:none;padding:0;margin-bottom:0;">
+      <div class="card-title">年龄段分布</div>
+      <canvas id="ageSegmentChart"></canvas>
+      <div class="css-bar-chart" id="ageSegmentBarChart"></div>
+    </div>
+  </div>
+
   <!-- 新增：渠道来源分布 -->
   <div class="card">
     <div class="card-title">📊 客户来源分布</div>
@@ -412,6 +450,16 @@ body {
     </div>
     <div id="potentialEmpty" style="display:none;text-align:center;padding:20px;color:#aaa;">暂无高净值待挖学员</div>
   </div>
+
+  <!-- v1.8.1新增：主观/客观字段完成率对比 -->
+  <div class="card">
+    <div class="card-title">📋 字段完成率对比</div>
+    <div class="stats-grid" id="completion-compare-cards"></div>
+    <div class="chart-container" style="box-shadow:none;padding:0;">
+      <canvas id="completionCompareChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="completionCompareBarChart"></div>
+  </div>
 </div>
 
 <!-- ===== 页3：产品推荐画像 ===== -->
@@ -435,7 +483,7 @@ body {
     <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
     <div style="overflow-x:auto;">
       <table class="data-table" id="recommend-table">
-        <thead><tr><th>姓名</th><th>年级</th><th>支付力</th><th>推荐课程</th><th>推荐理由</th><th>跟进优先级</th></tr></thead>
+        <thead><tr><th>姓名</th><th>年级</th><th>课程段</th><th>老师标签</th><th>支付力</th><th>可信度</th><th>推荐课程</th><th>推荐理由</th><th>跟进优先级</th></tr></thead>
         <tbody id="recommend-body"></tbody>
       </table>
     </div>
@@ -453,6 +501,94 @@ body {
     </div>
     <div id="courseRecommendEmpty" style="display:none;text-align:center;padding:20px;color:#aaa;">暂无课程级推荐数据</div>
   </div>
+</div>
+
+<!-- ===== 页4：责任关系全景（v1.8.1新增）===== -->
+<div class="page" id="page4">
+  <div class="page-header">
+    <h1>责任关系全景</h1>
+    <div class="subtitle">顾问交接、老师归属、课程段与年龄段分布一览</div>
+  </div>
+  <div class="stats-grid" id="page4-stats-cards"></div>
+  <div class="card">
+    <div class="card-title">顾问交接水平</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;">
+      <canvas id="page4HandoffChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="page4HandoffBarChart"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">老师归属分布</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;">
+      <canvas id="page4TeacherChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="page4TeacherBarChart"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">课程段分布</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;">
+      <canvas id="page4CourseChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="page4CourseBarChart"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">年龄段分布</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;">
+      <canvas id="page4AgeChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="page4AgeBarChart"></div>
+  </div>
+  <div id="page4-empty" style="display:none;text-align:center;padding:40px;color:#aaa;">暂无数据</div>
+</div>
+
+<!-- ===== 页5：数据质量报告（v1.8.1新增）===== -->
+<div class="page" id="page5">
+  <div class="page-header">
+    <h1>数据质量报告</h1>
+    <div class="subtitle">字段完成率、可信度分布、冲突统计与待确认项</div>
+  </div>
+  <div class="stats-grid" id="page5-stats-cards"></div>
+  <div class="card">
+    <div class="card-title">字段完成率明细</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="fieldCompletionTable">
+        <thead><tr><th>字段</th><th>非空人数</th><th>完成率</th></tr></thead>
+        <tbody id="fieldCompletionBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">主观字段完成率</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;">
+      <canvas id="subjectiveFieldChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="subjectiveFieldBarChart"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">可信度分布</div>
+    <div class="chart-container" style="box-shadow:none;padding:0;">
+      <canvas id="credibilityPieChart"></canvas>
+    </div>
+    <div class="css-bar-chart" id="credibilityPieBarChart"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">冲突统计</div>
+    <div class="stats-grid" id="conflict-stats-cards"></div>
+    <div id="conflict-detail-list" style="margin-top:12px;"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">待确认汇总</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="pendingTable">
+        <thead><tr><th>姓名</th><th>年级</th><th>校区</th><th>可信度标记</th><th>冲突标注</th></tr></thead>
+        <tbody id="pendingTableBody"></tbody>
+      </table>
+    </div>
+    <div id="pendingEmpty" style="display:none;text-align:center;padding:20px;color:#aaa;">暂无待确认项</div>
+  </div>
+  <div id="page5-empty" style="display:none;text-align:center;padding:40px;color:#aaa;">暂无数据</div>
 </div>
 
 <div class="footer">
@@ -498,12 +634,13 @@ function renderTable() {
   const data = REPORT_DATA.学员列表 || [];
   const columns = [
     {key:'校区', label:'校区'}, {key:'姓名', label:'姓名'}, {key:'年级', label:'年级'},
-    {key:'居住小区', label:'居住小区'}, {key:'学校层次', label:'学校层次'},
-    {key:'支付力', label:'支付力', isTag:true},
-    {key:'续费风险', label:'续费风险', isTag:true},
-    {key:'转介绍潜力', label:'转介绍潜力', isTag:true},
-    {key:'跟进优先级', label:'跟进优先级', isStars:true},
-    {key:'推荐方向', label:'推荐方向'},
+    {key:'当前顾问', label:'当前顾问'}, {key:'归属老师标签', label:'归属老师标签'},
+    {key:'课程段标签', label:'课程段标签'}, {key:'年龄段标签', label:'年龄段标签'},
+    {key:'交接状态', label:'交接状态'}, {key:'居住小区', label:'居住小区'},
+    {key:'学校层次', label:'学校层次'}, {key:'支付力', label:'支付力', isTag:true},
+    {key:'续费风险', label:'续费风险', isTag:true}, {key:'转介绍潜力', label:'转介绍潜力', isTag:true},
+    {key:'可信度标记', label:'可信度', isCred:true},
+    {key:'跟进优先级', label:'跟进优先级', isStars:true}, {key:'推荐方向', label:'推荐方向'},
     {key:'学情画像', label:'学情画像'}
   ];
   // 表头
@@ -524,11 +661,21 @@ function fillFilterOptions(data) {
   const grades = [...new Set(data.map(d => d.年级).filter(Boolean))];
   const payments = ['高','中','低'];
   const risks = ['高','中','低'];
+  const courseSegments = [...new Set(data.map(d => d.课程段标签).filter(Boolean))];
+  const teacherOwners = [...new Set(data.map(d => d.归属老师标签).filter(Boolean))];
+  const advisors = [...new Set(data.map(d => d.当前顾问).filter(Boolean))];
+  const handoffs = [...new Set(data.map(d => d.交接状态).filter(Boolean))];
+  const credibilities = ['高可信度','中可信度','低可信度','待验证'];
 
   fillSelect('filter-campus', campuses);
   fillSelect('filter-grade', grades);
   fillSelect('filter-payment', payments);
   fillSelect('filter-risk', risks);
+  fillSelect('filter-course-segment', courseSegments);
+  fillSelect('filter-teacher-owner', teacherOwners);
+  fillSelect('filter-advisor', advisors);
+  fillSelect('filter-handoff', handoffs);
+  fillSelect('filter-credibility', credibilities);
 }
 
 function fillSelect(id, options) {
@@ -546,6 +693,11 @@ function applyFilters() {
   const fg = document.getElementById('filter-grade').value;
   const fp = document.getElementById('filter-payment').value;
   const fr = document.getElementById('filter-risk').value;
+  const fs = document.getElementById('filter-course-segment').value;
+  const ft = document.getElementById('filter-teacher-owner').value;
+  const fa = document.getElementById('filter-advisor').value;
+  const fh = document.getElementById('filter-handoff').value;
+  const fcr = document.getElementById('filter-credibility').value;
   const fn = document.getElementById('filter-name').value.toLowerCase();
 
   const filtered = data.filter(d => {
@@ -553,14 +705,21 @@ function applyFilters() {
     if (fg && d.年级 !== fg) return false;
     if (fp && d.支付力 !== fp) return false;
     if (fr && d.续费风险 !== fr) return false;
+    if (fs && d.课程段标签 !== fs) return false;
+    if (ft && d.归属老师标签 !== ft) return false;
+    if (fa && d.当前顾问 !== fa) return false;
+    if (fh && d.交接状态 !== fh) return false;
+    if (fcr && d.可信度标记 !== fcr) return false;
     if (fn && !d.姓名.toLowerCase().includes(fn)) return false;
     return true;
   });
 
   const columns = [
-    {key:'校区'}, {key:'姓名'}, {key:'年级'}, {key:'居住小区'}, {key:'学校层次'},
+    {key:'校区'}, {key:'姓名'}, {key:'年级'}, {key:'当前顾问'}, {key:'归属老师标签'},
+    {key:'课程段标签'}, {key:'年龄段标签'}, {key:'交接状态'}, {key:'居住小区'}, {key:'学校层次'},
     {key:'支付力', isTag:true}, {key:'续费风险', isTag:true},
-    {key:'转介绍潜力', isTag:true}, {key:'跟进优先级', isStars:true},
+    {key:'转介绍潜力', isTag:true}, {key:'可信度标记', isCred:true},
+    {key:'跟进优先级', isStars:true},
     {key:'推荐方向'}, {key:'学情画像'}
   ];
 
@@ -570,6 +729,14 @@ function applyFilters() {
     columns.forEach(c => {
       let val = d[c.key] || '';
       if (c.isTag && val) val = '<span class="' + tagClass(val) + '">' + val + '</span>';
+      if (c.isCred && val) {
+        var credCls = 'tag-neutral';
+        if (val === '高可信度') credCls = 'tag-low';
+        else if (val === '中可信度') credCls = 'tag-medium';
+        else if (val === '低可信度') credCls = 'tag-high';
+        else if (val === '待验证') credCls = 'tag-high';
+        val = '<span class="tag ' + credCls + '">' + val + '</span>';
+      }
       if (c.isStars) val = starsHtml(parseInt(val) || 0);
       bodyHtml += '<td>' + val + '</td>';
     });
@@ -600,6 +767,7 @@ function renderAnalysis() {
   renderChart('chart-community', 'css-community', stats.家长来源小区分布 || [], '小区', '人数');
   renderChart('chart-school', 'css-school', stats.学校层次分布 || [], '层次', '人数');
   renderTagsChart(stats);
+  renderRelationSummary(stats);
 
   // 新增统计模块渲染
   renderChannelChart();
@@ -607,10 +775,11 @@ function renderAnalysis() {
   renderProfileChart();
   renderRiskList();
   renderPotentialList();
+  renderCompletionCompare();
 }
 
 function renderChart(canvasId, cssId, data, labelKey, valueKey) {
-  const labels = data.map(d => d[labelKey] || d.小区 || d.层次 || d.课程 || d.标签 || '');
+  const labels = data.map(d => d[labelKey] || d.小区 || d.层次 || d.课程 || d.标签 || d.课程段 || d.老师 || d.顾问 || d.交接状态 || d.年龄段 || '');
   const values = data.map(d => d[valueKey] || d.人数 || d.占比 || 0);
 
   if (typeof Chart !== 'undefined') {
@@ -638,13 +807,33 @@ function renderChart(canvasId, cssId, data, labelKey, valueKey) {
     data.forEach((d, i) => {
       const val = d[valueKey] || d.人数 || d.占比 || 0;
       const pct = (val / max * 100) + '%';
-      const label = d[labelKey] || d.小区 || d.层次 || d.课程 || d.标签 || '';
+      const label = d[labelKey] || d.小区 || d.层次 || d.课程 || d.标签 || d.课程段 || d.老师 || d.顾问 || d.交接状态 || d.年龄段 || '';
       html += '<div class="css-bar-item"><div class="css-bar-label">' + label + '</div>';
       html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
       html += '<div class="css-bar-value">' + val + '</div></div>';
     });
     document.getElementById(cssId).innerHTML = html;
   }
+}
+
+function renderRelationSummary(stats) {
+  const relationCards = [
+    {label:'课程段数', value:(stats.课程段分布 || []).filter(d => d.课程段 !== '未填写').length},
+    {label:'老师标签数', value:(stats.老师归属分布 || []).filter(d => d.老师 !== '未填写').length},
+    {label:'当前顾问数', value:(stats.顾问分布 || []).filter(d => d.顾问 !== '未填写').length},
+    {label:'交接状态数', value:(stats.交接状态分布 || []).filter(d => d.交接状态 !== '未填写').length}
+  ];
+  let html = '';
+  relationCards.forEach(c => {
+    html += '<div class="stat-card"><div class="stat-value">' + c.value + '</div><div class="stat-label">' + c.label + '</div></div>';
+  });
+  const summaryEl = document.getElementById('relation-summary-cards');
+  if (summaryEl) summaryEl.innerHTML = html;
+  renderChart('courseSegmentChart', 'courseSegmentBarChart', stats.课程段分布 || [], '课程段', '人数');
+  renderChart('teacherOwnerChart', 'teacherOwnerBarChart', stats.老师归属分布 || [], '老师', '人数');
+  renderChart('advisorChart', 'advisorBarChart', stats.顾问分布 || [], '顾问', '人数');
+  renderChart('handoffChart', 'handoffBarChart', stats.交接状态分布 || [], '交接状态', '人数');
+  renderChart('ageSegmentChart', 'ageSegmentBarChart', stats.年龄段分布 || [], '年龄段', '人数');
 }
 
 function renderTagsChart(stats) {
@@ -732,7 +921,15 @@ function renderRecommendTable(course) {
     html += '<tr>';
     html += '<td>' + (d.姓名||'') + '</td>';
     html += '<td>' + (d.年级||'') + '</td>';
+    html += '<td>' + (d.课程段标签||'') + '</td>';
+    html += '<td>' + (d.归属老师标签||'') + '</td>';
     html += '<td><span class="' + tagClass(d.支付力) + '">' + (d.支付力||'') + '</span></td>';
+    var credVal = d.可信度标记 || '';
+    var credCls = 'tag-neutral';
+    if (credVal === '高可信度') credCls = 'tag-low';
+    else if (credVal === '中可信度') credCls = 'tag-medium';
+    else if (credVal === '低可信度' || credVal === '待验证') credCls = 'tag-high';
+    html += '<td><span class="tag ' + credCls + '">' + credVal + '</span></td>';
     html += '<td>' + (d.推荐方向||'待配置') + '</td>';
     html += '<td>' + (d.推荐理由||'') + '</td>';
     html += '<td>' + starsHtml(parseInt(d.跟进优先级)||0) + '</td>';
@@ -963,12 +1160,281 @@ function renderCourseRecommend() {
   empty.style.display = 'none';
 }
 
+// ===== v1.8.1新增：字段完成率对比 =====
+function renderCompletionCompare() {
+  const stats = REPORT_DATA.统计 || {};
+  var subjRate = stats.主观字段完成率 || '0%';
+  var objRate = stats.客观字段完成率 || '0%';
+  var subjFloat = stats.主观字段完成率数值 || 0;
+  var objFloat = stats.客观字段完成率数值 || 0;
+
+  // Stats cards
+  var cardsHtml = '';
+  cardsHtml += '<div class="stat-card"><div class="stat-value">' + subjRate + '</div><div class="stat-label">主观字段完成率</div></div>';
+  cardsHtml += '<div class="stat-card"><div class="stat-value">' + objRate + '</div><div class="stat-label">客观字段完成率</div></div>';
+  document.getElementById('completion-compare-cards').innerHTML = cardsHtml;
+
+  // Chart
+  var labels = ['主观字段', '客观字段'];
+  var values = [subjFloat, objFloat];
+  var bgColors = ['#f39c12', '#667eea'];
+
+  if (typeof Chart !== 'undefined') {
+    var ctx = document.getElementById('completionCompareChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ data: values, backgroundColor: bgColors, borderRadius: 6 }] },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { min: 0, max: 100, ticks: { callback: function(v) { return v + '%'; } } } }
+      }
+    });
+  } else {
+    document.getElementById('completionCompareChart').style.display = 'none';
+    var html = '';
+    var maxVal = Math.max(subjFloat, objFloat, 1);
+    labels.forEach(function(l, i) {
+      var pct = (values[i] / 100 * 100) + '%';
+      html += '<div class="css-bar-item"><div class="css-bar-label">' + l + '</div>';
+      html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + bgColors[i] + ';"></div></div>';
+      html += '<div class="css-bar-value">' + values[i] + '%</div></div>';
+    });
+    document.getElementById('completionCompareBarChart').innerHTML = html;
+  }
+}
+
+// ===== 页4：责任关系全景（v1.8.1新增）=====
+function renderPage4() {
+  var stats = REPORT_DATA.统计 || {};
+  var data = REPORT_DATA.学员列表 || [];
+
+  // Check for empty data
+  if (!data || data.length === 0) {
+    document.getElementById('page4-empty').style.display = 'block';
+    return;
+  }
+  document.getElementById('page4-empty').style.display = 'none';
+
+  // Stats cards
+  var totalStudents = stats.总人数 || 0;
+  var advisorCount = (stats.顾问分布 || []).filter(function(d) { return d.顾问 !== '未填写'; }).length;
+  var teacherCount = (stats.老师归属分布 || []).filter(function(d) { return d.老师 !== '未填写'; }).length;
+  var handoffTypes = (stats.交接状态分布 || []).filter(function(d) { return d.交接状态 !== '未填写'; }).length;
+
+  var cardsHtml = '';
+  cardsHtml += '<div class="stat-card"><div class="stat-value">' + totalStudents + '</div><div class="stat-label">学员总数</div></div>';
+  cardsHtml += '<div class="stat-card"><div class="stat-value">' + advisorCount + '</div><div class="stat-label">当前顾问数</div></div>';
+  cardsHtml += '<div class="stat-card"><div class="stat-value">' + teacherCount + '</div><div class="stat-label">归属老师数</div></div>';
+  cardsHtml += '<div class="stat-card"><div class="stat-value">' + handoffTypes + '</div><div class="stat-label">交接状态类型</div></div>';
+  document.getElementById('page4-stats-cards').innerHTML = cardsHtml;
+
+  // Charts
+  renderPage4Chart('page4HandoffChart', 'page4HandoffBarChart', stats.交接状态分布 || [], '交接状态', '人数', 'bar');
+  renderPage4Chart('page4TeacherChart', 'page4TeacherBarChart', stats.老师归属分布 || [], '老师', '人数', 'bar');
+  renderPage4Chart('page4CourseChart', 'page4CourseBarChart', stats.课程段分布 || [], '课程段', '人数', 'bar');
+  renderPage4Chart('page4AgeChart', 'page4AgeBarChart', stats.年龄段分布 || [], '年龄段', '人数', 'pie');
+}
+
+function renderPage4Chart(canvasId, cssId, chartData, labelKey, valueKey, chartType) {
+  if (!chartData || chartData.length === 0) return;
+  var labels = chartData.map(function(d) { return d[labelKey] || ''; });
+  var values = chartData.map(function(d) { return d[valueKey] || 0; });
+  var colors = ['#667eea','#764ba2','#f39c12','#27ae60','#e74c3c','#3498db','#1abc9c','#9b59b6'];
+
+  if (typeof Chart !== 'undefined') {
+    var ctx = document.getElementById(canvasId).getContext('2d');
+    if (chartType === 'pie') {
+      new Chart(ctx, {
+        type: 'pie',
+        data: { labels: labels, datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length) }] },
+        options: { responsive: true, plugins: { legend: { position: 'right' } } }
+      });
+    } else {
+      new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ data: values, backgroundColor: colors[0], borderRadius: 6 }] },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+  } else {
+    document.getElementById(canvasId).style.display = 'none';
+    document.getElementById(cssId).style.display = 'flex';
+    var html = '';
+    var max = Math.max.apply(null, values.concat([1]));
+    chartData.forEach(function(d, i) {
+      var val = d[valueKey] || 0;
+      var label = d[labelKey] || '';
+      var pct = (val / max * 100) + '%';
+      html += '<div class="css-bar-item"><div class="css-bar-label">' + label + '</div>';
+      html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
+      html += '<div class="css-bar-value">' + val + '</div></div>';
+    });
+    document.getElementById(cssId).innerHTML = html;
+  }
+}
+
+// ===== 页5：数据质量报告（v1.8.1新增）=====
+function renderPage5() {
+  var stats = REPORT_DATA.统计 || {};
+  var data = REPORT_DATA.学员列表 || [];
+
+  if (!data || data.length === 0) {
+    document.getElementById('page5-empty').style.display = 'block';
+    return;
+  }
+  document.getElementById('page5-empty').style.display = 'none';
+
+  // Stats cards: 主观完成率, 客观完成率, 高可信度占比, 冲突学生数
+  var credibilityDist = stats.可信度分布 || [];
+  var highCredCount = 0;
+  credibilityDist.forEach(function(d) { if (d.可信度 === '高可信度') highCredCount = d.人数; });
+  var totalStudents = stats.总人数 || 1;
+  var highCredPct = Math.round(highCredCount / totalStudents * 100) + '%';
+
+  var conflictStats = stats.冲突统计 || {};
+  var conflictStudentCount = conflictStats.涉及学生数 || 0;
+
+  var cardsHtml = '';
+  cardsHtml += '<div class="stat-card"><div class="stat-value">' + (stats.主观字段完成率 || '0%') + '</div><div class="stat-label">主观字段完成率</div></div>';
+  cardsHtml += '<div class="stat-card"><div class="stat-value">' + (stats.客观字段完成率 || '0%') + '</div><div class="stat-label">客观字段完成率</div></div>';
+  cardsHtml += '<div class="stat-card high"><div class="stat-value">' + highCredPct + '</div><div class="stat-label">高可信度占比</div></div>';
+  cardsHtml += '<div class="stat-card high"><div class="stat-value">' + conflictStudentCount + '</div><div class="stat-label">冲突涉及学生</div></div>';
+  document.getElementById('page5-stats-cards').innerHTML = cardsHtml;
+
+  // 字段完成率明细表格
+  var fieldDetail = stats.字段完成率明细 || [];
+  var fieldBodyHtml = '';
+  if (fieldDetail.length === 0) {
+    fieldBodyHtml = '<tr><td colspan="3" style="text-align:center;color:#aaa;">暂无数据</td></tr>';
+  } else {
+    fieldDetail.forEach(function(f) {
+      fieldBodyHtml += '<tr>';
+      fieldBodyHtml += '<td>' + (f.字段 || '') + '</td>';
+      fieldBodyHtml += '<td>' + (f.非空人数 || 0) + '</td>';
+      fieldBodyHtml += '<td>' + (f.完成率 || '0%') + '</td>';
+      fieldBodyHtml += '</tr>';
+    });
+  }
+  document.getElementById('fieldCompletionBody').innerHTML = fieldBodyHtml;
+
+  // 主观字段完成率柱状图
+  var subjFieldDetail = stats.主观字段完成率明细 || [];
+  if (subjFieldDetail.length > 0) {
+    var labels = subjFieldDetail.map(function(d) { return d.字段 || ''; });
+    var values = subjFieldDetail.map(function(d) { return d.完成率 || 0; });
+    var colors = ['#667eea','#764ba2','#f39c12','#27ae60','#e74c3c','#3498db','#1abc9c','#9b59b6','#e67e22','#2ecc71','#c0392b','#8e44ad'];
+    if (typeof Chart !== 'undefined') {
+      var ctx = document.getElementById('subjectiveFieldChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length), borderRadius: 6 }] },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { min: 0, max: 100, ticks: { callback: function(v) { return v + '%'; } } } }
+        }
+      });
+    } else {
+      document.getElementById('subjectiveFieldChart').style.display = 'none';
+      var html = '';
+      var maxVal = Math.max.apply(null, values.concat([1]));
+      subjFieldDetail.forEach(function(d, i) {
+        var pct = (d.完成率 / 100 * 100) + '%';
+        html += '<div class="css-bar-item"><div class="css-bar-label">' + (d.字段||'') + '</div>';
+        html += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + colors[i % colors.length] + ';"></div></div>';
+        html += '<div class="css-bar-value">' + (d.完成率||0) + '%</div></div>';
+      });
+      document.getElementById('subjectiveFieldBarChart').innerHTML = html;
+    }
+  }
+
+  // 可信度分布饼图
+  var credDist = stats.可信度分布 || [];
+  var credLabels = [], credValues = [], credColors = ['#27ae60','#f39c12','#e74c3c','#e74c3c','#aaa'];
+  credDist.forEach(function(d) {
+    if (d.人数 > 0) {
+      credLabels.push(d.可信度 || '');
+      credValues.push(d.人数);
+    }
+  });
+  if (credLabels.length > 0 && typeof Chart !== 'undefined') {
+    var ctx2 = document.getElementById('credibilityPieChart').getContext('2d');
+    new Chart(ctx2, {
+      type: 'pie',
+      data: { labels: credLabels, datasets: [{ data: credValues, backgroundColor: credColors.slice(0, credLabels.length) }] },
+      options: { responsive: true, plugins: { legend: { position: 'right' } } }
+    });
+  } else if (credLabels.length > 0) {
+    document.getElementById('credibilityPieChart').style.display = 'none';
+    var html2 = '';
+    var max2 = Math.max.apply(null, credValues.concat([1]));
+    credLabels.forEach(function(l, i) {
+      var pct = (credValues[i] / max2 * 100) + '%';
+      html2 += '<div class="css-bar-item"><div class="css-bar-label">' + l + '</div>';
+      html2 += '<div class="css-bar-track"><div class="css-bar-fill" style="width:' + pct + ';background:' + credColors[i] + ';"></div></div>';
+      html2 += '<div class="css-bar-value">' + credValues[i] + '</div></div>';
+    });
+    document.getElementById('credibilityPieBarChart').innerHTML = html2;
+  }
+
+  // 冲突统计卡片
+  var conflictFieldCount = conflictStats.冲突字段总数 || 0;
+  var conflictCardsHtml = '';
+  conflictCardsHtml += '<div class="stat-card high"><div class="stat-value">' + conflictFieldCount + '</div><div class="stat-label">冲突字段总数</div></div>';
+  conflictCardsHtml += '<div class="stat-card high"><div class="stat-value">' + conflictStudentCount + '</div><div class="stat-label">涉及学生数</div></div>';
+  document.getElementById('conflict-stats-cards').innerHTML = conflictCardsHtml;
+
+  // 冲突学生列表
+  var conflictList = conflictStats.冲突学生列表 || [];
+  var conflictDetailHtml = '';
+  if (conflictList.length > 0) {
+    conflictDetailHtml += '<table class="data-table"><thead><tr><th>姓名</th><th>年级</th><th>冲突标注</th></tr></thead><tbody>';
+    conflictList.forEach(function(c) {
+      conflictDetailHtml += '<tr>';
+      conflictDetailHtml += '<td>' + (c.姓名||'') + '</td>';
+      conflictDetailHtml += '<td>' + (c.年级||'') + '</td>';
+      conflictDetailHtml += '<td><span class="tag tag-high">' + (c.冲突标注||'') + '</span></td>';
+      conflictDetailHtml += '</tr>';
+    });
+    conflictDetailHtml += '</tbody></table>';
+  }
+  document.getElementById('conflict-detail-list').innerHTML = conflictDetailHtml;
+
+  // 待确认汇总
+  var pendingList = stats.待确认汇总 || [];
+  var pendingBody = document.getElementById('pendingTableBody');
+  var pendingEmpty = document.getElementById('pendingEmpty');
+  if (pendingList.length === 0) {
+    pendingBody.innerHTML = '';
+    pendingEmpty.style.display = 'block';
+  } else {
+    pendingEmpty.style.display = 'none';
+    var pendingHtml = '';
+    pendingList.forEach(function(p) {
+      var credVal = p.可信度标记 || '';
+      var pCls = 'tag-high';
+      if (credVal === '待验证') pCls = 'tag-high';
+      pendingHtml += '<tr>';
+      pendingHtml += '<td>' + (p.姓名||'') + '</td>';
+      pendingHtml += '<td>' + (p.年级||'') + '</td>';
+      pendingHtml += '<td>' + (p.校区||'') + '</td>';
+      pendingHtml += '<td><span class="tag ' + pCls + '">' + credVal + '</span></td>';
+      pendingHtml += '<td>' + (p.冲突标注||'') + '</td>';
+      pendingHtml += '</tr>';
+    });
+    pendingBody.innerHTML = pendingHtml;
+  }
+}
+
 // ===== 初始化 =====
 window.addEventListener('DOMContentLoaded', function() {
   document.getElementById('gen-time').textContent = '生成时间：' + (REPORT_DATA.生成时间 || '');
   renderTable();
   renderAnalysis();
   renderRecommend();
+  renderPage4();
+  renderPage5();
 });
 </script>
 </body>

@@ -69,6 +69,40 @@ D2_FIELDS: List[str] = [
 # 三路信源字段（家庭背景交叉补充）
 CROSS_FIELDS: List[str] = ["家庭背景(老师补充)"]  # B_cross_teacher
 
+# G. 责任关系与筛选标签字段（v1.8.0新增，主表当前快照）
+RELATION_MAIN_FIELDS: List[str] = [
+    "当前顾问", "历史顾问", "顾问关系备注", "交接状态",
+    "归属老师标签", "课程段标签", "年龄段标签",
+]
+
+# 责任关系明细sheet列（v1.8.0新增）
+RESPONSIBILITY_DETAIL_COLUMNS: List[str] = [
+    "姓名", "年级", "关系类型", "关系状态", "负责人姓名",
+    "课程段", "关系备注", "来源角色", "来源文件", "更新时间",
+]
+
+# 标准课程段值，前5项为课程段标签展示优先级；Python段用于无具体级别时保留原始关系语义。
+COURSE_SEGMENT_VALUES: List[str] = ["Code2", "Code3", "PYTHON1", "PYTHON2", "PYTHON3", "Python段"]
+
+# 课程段别名归一化配置。键为标准值，值为常见口语/大小写/中英文混合表达。
+COURSE_SEGMENT_ALIASES: Dict[str, List[str]] = {
+    "Code2": ["code2", "code 2", "code二", "code 二", "c2", "c 2", "代码二", "编程二"],
+    "Code3": ["code3", "code 3", "code三", "code 三", "c3", "c 3", "代码三", "编程三"],
+    "PYTHON1": ["python1", "python 1", "python一", "python 一", "py1", "py 1", "py一", "py 一", "p1", "p 1"],
+    "PYTHON2": ["python2", "python 2", "python二", "python 二", "py2", "py 2", "py二", "py 二", "p2", "p 2"],
+    "PYTHON3": ["python3", "python 3", "python三", "python 三", "py3", "py 3", "py三", "py 三", "p3", "p 3"],
+    "Python段": ["python段", "python", "py段", "py", "python课程", "python老师"],
+}
+
+# 年龄段规则说明（infer_age_segment为唯一执行函数）
+AGE_SEGMENT_RULES: List[Dict[str, str]] = [
+    {"条件": "年龄<=8", "年龄段": "低龄段"},
+    {"条件": "9<=年龄<=10", "年龄段": "小学中段"},
+    {"条件": "11<=年龄<=12", "年龄段": "小学高段"},
+    {"条件": "年龄>=13", "年龄段": "初中段及以上"},
+    {"条件": "年龄缺失时按年级估算", "年龄段": "追加(按年级估算,待确认)"},
+]
+
 # 学情画像标签（8类，v1文字标签）
 PROFILE_TAGS: List[str] = [
     "竞赛冲刺型", "科创潜力型", "兴趣探索型", "续费稳定型",
@@ -104,24 +138,31 @@ AI_FIELDS: List[str] = ["小区房价段", "住户画像", "周边学校",
 TAG_FIELDS: List[str] = ["支付力", "续费风险", "转介绍潜力",
                          "跟进优先级", "推荐产品方向"]
 
-# 顾问版Excel列顺序（A + B + B2 + E）= 5+9+9+1 = 24列
-CONSULTANT_COLUMNS: List[str] = A_FIELDS + B_FIELDS + B2_FIELDS + E_FIELDS
+# 顾问版Excel列顺序（A + B + B2 + 顾问关系快照 + E）= 5+9+9+4+1 = 28列
+CONSULTANT_COLUMNS: List[str] = A_FIELDS + B_FIELDS + B2_FIELDS + [
+    "当前顾问", "历史顾问", "顾问关系备注", "交接状态",
+] + E_FIELDS
 
-# 老师版Excel列顺序（A + C + D + D2 + E + B_cross_teacher）= 5+6+5+13+1+1 = 31列
-TEACHER_COLUMNS: List[str] = A_FIELDS + C_FIELDS + D_FIELDS + D2_FIELDS + E_FIELDS + CROSS_FIELDS
+# 老师版Excel列顺序（A + C + D + D2 + E + B_cross_teacher + 老师标签）= 5+6+5+13+1+1+3 = 34列
+TEACHER_COLUMNS: List[str] = A_FIELDS + C_FIELDS + D_FIELDS + D2_FIELDS + E_FIELDS + CROSS_FIELDS + [
+    "归属老师标签", "课程段标签", "年龄段标签",
+]
 
-# 汇总表主表列顺序（全部字段，v1.7.0共55列）
+# 汇总表主表列顺序（全部字段，v1.8.1共59列）
+# v1.8.1变更：删除"年龄"（已有年龄段标签替代）、合并"家长职业"+"单位性质"→"家长职业与单位"、
+#           删除"对AI认知度"（保留在个人B表）、删除"同伴关系"（保留在个人C表）、
+#           新增"可信度标记"列
 SUMMARY_COLUMNS: List[str] = [
-    # A基础标识（4列）
-    "校区", "姓名", "年级", "年龄",
-    # B1家庭背景（9列）
-    "家长职业", "单位性质", "家庭结构", "教育氛围", "居住小区",
-    "家长规划目标", "家长教育取向", "家长竞赛认知", "对AI认知度",
+    # A基础标识（3列，v1.8.1移除"年龄"）
+    "校区", "姓名", "年级",
+    # B1家庭背景（7列；v1.8.1合并家长职业+单位性质→家长职业与单位，移除对AI认知度）
+    "家长职业与单位", "家庭结构", "教育氛围", "居住小区",
+    "家长规划目标", "家长教育取向", "家长竞赛认知",
     # B2销售漏斗（7列进汇总；最初兴趣点/介绍过的产品不进汇总；v1.7.0新增顾问侧续费历史）
     "客户来源", "对接次数", "累计跟进时长", "当前阶段", "堵点", "顾问复盘",
     "顾问侧续费历史",  # B2.09 v1.7.0新增
-    # C在校情况（6列）
-    "学校名称", "成绩水平", "性格特点", "兴趣偏好", "课堂表现", "同伴关系",
+    # C在校情况（5列；v1.8.1移除"同伴关系"）
+    "学校名称", "成绩水平", "性格特点", "兴趣偏好", "课堂表现",
     # D1课程成果（5列）
     "已报名课程", "在读课程", "学习时长", "作品成果", "续费历史",
     # D2学情履历（8列进汇总；入学时年级/当前年级/过往奖项/特长兴趣/学生状态观察不进汇总）
@@ -131,8 +172,13 @@ SUMMARY_COLUMNS: List[str] = [
     "学员细节备注",
     # 三路信源（1列）
     "家庭背景(老师补充)",
+    # G责任关系与筛选标签（7列，主表当前快照）
+    "当前顾问", "历史顾问", "顾问关系备注", "交接状态",
+    "归属老师标签", "课程段标签", "年龄段标签",
     # 合并生成（1列）
     "冲突标注",
+    # 可信度标记（1列，v1.8.1新增）
+    "可信度标记",
     # AI补齐（7列）
     "学校层次(科技特色)", "科技特色详情", "小区房价段", "住户画像", "周边竞品", "家庭消费力",
     "推荐话术素材",
@@ -141,6 +187,74 @@ SUMMARY_COLUMNS: List[str] = [
     # 学情画像（1列）
     "学情画像",
 ]
+
+# v1.8.1 可信度标记相关常量
+# 主观字段列表（用于判断信息完整性）
+SUBJECTIVE_FIELDS: List[str] = [
+    "家长职业与单位", "家庭结构", "教育氛围", "居住小区",
+    "家长规划目标", "家长教育取向", "家长竞赛认知",
+    "学校名称", "成绩水平", "性格特点", "兴趣偏好", "课堂表现",
+]
+# 不确定表述关键词（匹配任一即判定为"低可信度"）
+UNCERTAINTY_MARKERS: List[str] = [
+    "大概", "可能", "不清楚", "不确定", "也许", "好像", "估计", "似乎",
+]
+# 排除字段（不参与不确定关键词扫描）
+EXCLUDED_FROM_UNCERTAINTY: List[str] = [
+    "年龄段标签", "交接状态", "冲突标注",
+]
+
+
+def calculate_credibility(student: Dict[str, Any], flat: Dict[str, str]) -> str:
+    """计算学生记录的可信度标记。
+
+    优先级由高到低：
+    1. 扫描 flat 所有字段值（排除 EXCLUDED_FROM_UNCERTAINTY 字段），
+       匹配 UNCERTAINTY_MARKERS 中任一词 → 返回"低可信度"
+    2. flat["冲突标注"] 非空 → 返回"待验证"
+    3. 所有 SUBJECTIVE_FIELDS 在 flat 中均为空 → 返回"待验证"
+    4. student["来源角色"] 同时含"顾问"和"老师"且无冲突 → 返回"高可信度"
+    5. 默认 → 返回"中可信度"
+
+    Args:
+        student: 合并后的学生记录（含"来源角色"、"冲突标注"等字段）
+        flat: 扁平化后的字段字典
+
+    Returns:
+        "高可信度" / "中可信度" / "低可信度" / "待验证"
+    """
+    # 优先级1：扫描不确定关键词
+    for key, value in flat.items():
+        if key in EXCLUDED_FROM_UNCERTAINTY:
+            continue
+        val_str = str(value) if value else ""
+        for marker in UNCERTAINTY_MARKERS:
+            if marker in val_str:
+                return "低可信度"
+
+    # 优先级2：有冲突标注 → 待验证
+    conflict = (flat.get("冲突标注", "") or "").strip()
+    if conflict:
+        return "待验证"
+
+    # 优先级3：所有主观字段均为空 → 待验证
+    all_empty = True
+    for field in SUBJECTIVE_FIELDS:
+        val = (flat.get(field, "") or "").strip()
+        if val:
+            all_empty = False
+            break
+    if all_empty:
+        return "待验证"
+
+    # 优先级4：来源角色同时含"顾问"和"老师"且无冲突 → 高可信度
+    source_roles = student.get("来源角色", [])
+    if isinstance(source_roles, list) and "顾问" in source_roles and "老师" in source_roles:
+        return "高可信度"
+
+    # 优先级5：默认
+    return "中可信度"
+
 
 # 冲突清单sheet列
 CONFLICT_COLUMNS: List[str] = ["姓名", "年级", "字段名", "顾问值", "老师值", "状态", "备注"]
@@ -171,6 +285,403 @@ for f in D2_FIELDS:
     FIELD_GROUP_MAP[f] = "D2学情履历"
 for f in CROSS_FIELDS:
     FIELD_GROUP_MAP[f] = "三路信源"
+for f in RELATION_MAIN_FIELDS:
+    FIELD_GROUP_MAP[f] = "G责任关系与筛选标签"
+
+
+# ============================================================
+# v1.8.0 责任关系与筛选标签函数
+# ============================================================
+
+def _clean_text(value: Any) -> str:
+    """将任意值安全转成去首尾空白的字符串。
+
+    Args:
+        value: 任意输入值。
+
+    Returns:
+        规整后的字符串；None返回空字符串。
+    """
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _dedupe_keep_order(values: List[str]) -> List[str]:
+    """按出现顺序去重并丢弃空值。
+
+    Args:
+        values: 字符串列表。
+
+    Returns:
+        去重后的非空字符串列表。
+    """
+    seen = set()
+    result: List[str] = []
+    for value in values:
+        clean_value = _clean_text(value)
+        if not clean_value or clean_value in seen:
+            continue
+        seen.add(clean_value)
+        result.append(clean_value)
+    return result
+
+
+def _chinese_digit_to_int(text: str) -> str:
+    """将常见中文数字替换为阿拉伯数字字符。
+
+    Args:
+        text: 原始文本。
+
+    Returns:
+        替换后的文本。
+    """
+    compound_mapping = {
+        "十二": "12", "十一": "11", "十": "10",
+    }
+    digit_mapping = {
+        "零": "0", "一": "1", "二": "2", "两": "2", "三": "3",
+        "四": "4", "五": "5", "六": "6", "七": "7", "八": "8", "九": "9",
+    }
+    result = text
+    for cn_num, digit in compound_mapping.items():
+        result = result.replace(cn_num, digit)
+    for cn_num, digit in digit_mapping.items():
+        result = result.replace(cn_num, digit)
+    return result
+
+
+def normalize_course_segment(raw: Any) -> str:
+    """归一化课程段表达。
+
+    支持 code2/Code 2/code二/C2、py1/Python一 等常见表达。
+    无法识别时返回去空白后的原始字符串，避免丢失人工录入信息。
+
+    Args:
+        raw: 原始课程段文本。
+
+    Returns:
+        标准课程段值：Code2/Code3/PYTHON1/PYTHON2/PYTHON3/Python段；无法识别时返回原文。
+    """
+    text = _clean_text(raw)
+    if not text:
+        return ""
+
+    compact = re.sub(r"[\s_\-　]+", "", text.lower())
+    compact = _chinese_digit_to_int(compact)
+
+    normalized_aliases: Dict[str, List[str]] = {}
+    for standard, aliases in COURSE_SEGMENT_ALIASES.items():
+        normalized_aliases[standard] = [
+            _chinese_digit_to_int(re.sub(r"[\s_\-　]+", "", alias.lower()))
+            for alias in aliases
+        ]
+
+    # 优先匹配具体课程段，避免"python"先命中Python段。
+    for standard in COURSE_SEGMENT_VALUES:
+        if standard == "Python段":
+            continue
+        standard_key = _chinese_digit_to_int(re.sub(r"[\s_\-　]+", "", standard.lower()))
+        candidates = [standard_key] + normalized_aliases.get(standard, [])
+        if compact in candidates or any(candidate and candidate in compact for candidate in candidates):
+            return standard
+
+    python_segment_candidates = normalized_aliases.get("Python段", [])
+    if compact in python_segment_candidates:
+        return "Python段"
+
+    return text
+
+
+def infer_age_segment(age: Any, grade: Any) -> str:
+    """推断年龄段标签。
+
+    年龄优先：≤8低龄段；9-10小学中段；11-12小学高段；≥13初中段及以上。
+    年龄缺失时按年级兜底并追加"(按年级估算,待确认)"。
+
+    Args:
+        age: 年龄文本或数字。
+        grade: 年级文本。
+
+    Returns:
+        年龄段标签；信息不足返回空字符串。
+    """
+    age_text = _clean_text(age)
+    grade_text = _clean_text(grade)
+
+    age_match = re.search(r"\d+", age_text)
+    if age_match:
+        age_value = int(age_match.group(0))
+        if age_value <= 8:
+            return "低龄段"
+        if 9 <= age_value <= 10:
+            return "小学中段"
+        if 11 <= age_value <= 12:
+            return "小学高段"
+        return "初中段及以上"
+
+    if not grade_text:
+        return ""
+
+    grade_normalized = _chinese_digit_to_int(grade_text)
+    grade_match = re.search(r"\d+", grade_normalized)
+    if not grade_match:
+        return ""
+
+    grade_value = int(grade_match.group(0))
+    is_middle_school = any(keyword in grade_text for keyword in ["初", "七", "八", "九"]) or grade_value >= 7
+    if is_middle_school:
+        segment = "初中段及以上"
+    elif grade_value <= 2:
+        segment = "低龄段"
+    elif grade_value <= 4:
+        segment = "小学中段"
+    elif grade_value <= 6:
+        segment = "小学高段"
+    else:
+        segment = "初中段及以上"
+    return f"{segment}(按年级估算,待确认)"
+
+
+def normalize_relation_status(raw: Any) -> str:
+    """归一化责任关系状态。
+
+    Args:
+        raw: 原始关系状态文本。
+
+    Returns:
+        当前/历史/待确认/已交接/顾问冲突待确认/空字符串/原文。
+    """
+    text = _clean_text(raw)
+    if not text:
+        return ""
+    lowered = text.lower()
+    if any(keyword in text for keyword in ["当前", "现在", "现任", "负责中", "正在负责"]):
+        return "当前"
+    if any(keyword in text for keyword in ["历史", "以前", "之前", "原来", "曾经", "过往"]):
+        return "历史"
+    if any(keyword in text for keyword in ["待确认", "确认中", "不确定", "未知"]):
+        return "待确认"
+    if "交接" in text and not any(keyword in text for keyword in ["未", "无", "没有"]):
+        return "已交接"
+    if "冲突" in text:
+        return "顾问冲突待确认"
+    if lowered in {"current", "active"}:
+        return "当前"
+    if lowered in {"history", "historical", "past", "previous"}:
+        return "历史"
+    return text
+
+
+def _is_consultant_relation(relation: Dict[str, Any]) -> bool:
+    """判断明细是否为顾问关系。"""
+    relation_type = _clean_text(relation.get("关系类型"))
+    if relation_type:
+        return "顾问" in relation_type
+    return any(_clean_text(relation.get(field)) for field in ["当前顾问", "历史顾问", "顾问关系备注"])
+
+
+def _is_teacher_relation(relation: Dict[str, Any]) -> bool:
+    """判断明细是否为老师关系。"""
+    relation_type = _clean_text(relation.get("关系类型"))
+    if relation_type:
+        return "老师" in relation_type
+    return bool(_clean_text(relation.get("归属老师标签")) or _clean_text(relation.get("课程段")))
+
+
+def _get_relation_owner(relation: Dict[str, Any]) -> str:
+    """读取责任关系负责人姓名，兼容多种缓存键名。"""
+    for key in ["负责人姓名", "负责人", "老师", "顾问", "当前顾问", "历史顾问"]:
+        value = _clean_text(relation.get(key))
+        if value:
+            return value
+    return ""
+
+
+def _split_multi_value(text: Any) -> List[str]:
+    """拆分顿号/逗号/分号/竖线连接的多值文本。"""
+    value = _clean_text(text)
+    if not value:
+        return []
+    return [part.strip() for part in re.split(r"[、,，;；|｜/]+", value) if part.strip()]
+
+
+def determine_handoff_status(relations: List[Dict[str, Any]]) -> str:
+    """按顾问关系明细判断交接状态。
+
+    规则：只有当前顾问=无交接；只有历史顾问=待确认；历史+当前不同=已交接；
+    多个当前顾问冲突=顾问冲突待确认；全缺失为空。
+
+    Args:
+        relations: 责任关系明细列表。
+
+    Returns:
+        交接状态字符串。
+    """
+    current_advisors: List[str] = []
+    historical_advisors: List[str] = []
+
+    for relation in relations or []:
+        if not isinstance(relation, dict) or not _is_consultant_relation(relation):
+            continue
+        status = normalize_relation_status(relation.get("关系状态"))
+        owner = _get_relation_owner(relation)
+        current_value = _clean_text(relation.get("当前顾问"))
+        history_value = _clean_text(relation.get("历史顾问"))
+
+        if current_value:
+            current_advisors.extend(_split_multi_value(current_value))
+        if history_value:
+            historical_advisors.extend(_split_multi_value(history_value))
+        if owner:
+            if status == "当前":
+                current_advisors.append(owner)
+            elif status in {"历史", "已交接"}:
+                historical_advisors.append(owner)
+            elif status == "待确认" and not current_value:
+                historical_advisors.append(owner)
+
+    current_unique = _dedupe_keep_order(current_advisors)
+    history_unique = _dedupe_keep_order(historical_advisors)
+
+    if len(current_unique) > 1:
+        return "顾问冲突待确认"
+    if current_unique and not history_unique:
+        return "无交接"
+    if history_unique and not current_unique:
+        return "待确认"
+    if current_unique and history_unique:
+        if any(history != current_unique[0] for history in history_unique):
+            return "已交接"
+        return "无交接"
+    return ""
+
+
+def build_teacher_tags(relations: List[Dict[str, Any]]) -> str:
+    """从老师责任关系明细构建归属老师标签。
+
+    Args:
+        relations: 责任关系明细列表。
+
+    Returns:
+        形如"Code2-王老师、PYTHON1-李老师"的标签字符串。
+    """
+    tags: List[str] = []
+    for relation in relations or []:
+        if not isinstance(relation, dict) or not _is_teacher_relation(relation):
+            continue
+        explicit_tag = _clean_text(relation.get("归属老师标签"))
+        if explicit_tag:
+            tags.extend(_split_multi_value(explicit_tag))
+            continue
+        owner = _get_relation_owner(relation)
+        segment = normalize_course_segment(relation.get("课程段"))
+        if owner and segment:
+            tags.append(f"{segment}-{owner}")
+        elif owner:
+            tags.append(owner)
+    return "、".join(_dedupe_keep_order(tags))
+
+
+def build_course_segment_tags(relations: List[Dict[str, Any]], course_text: Any = "") -> str:
+    """从责任关系与课程文本构建课程段标签。
+
+    Args:
+        relations: 责任关系明细列表。
+        course_text: 已报名/在读课程等文本，用于无明细时轻量补算。
+
+    Returns:
+        按 Code2、Code3、PYTHON1、PYTHON2、PYTHON3 优先级排序的课程段标签文本。
+    """
+    segments: List[str] = []
+    for relation in relations or []:
+        if not isinstance(relation, dict):
+            continue
+        segment = normalize_course_segment(relation.get("课程段"))
+        if segment:
+            segments.append(segment)
+
+    raw_course = _clean_text(course_text)
+    if raw_course:
+        for part in re.split(r"[、,，;；|｜/\s]+", raw_course):
+            normalized_part = normalize_course_segment(part)
+            if normalized_part and normalized_part != part:
+                segments.append(normalized_part)
+
+        compact_course = _chinese_digit_to_int(re.sub(r"[\s_\-　]+", "", raw_course.lower()))
+        for standard, aliases in COURSE_SEGMENT_ALIASES.items():
+            if standard == "Python段":
+                continue
+            for alias in aliases + [standard]:
+                compact_alias = _chinese_digit_to_int(re.sub(r"[\s_\-　]+", "", alias.lower()))
+                if compact_alias and compact_alias in compact_course:
+                    segments.append(standard)
+                    break
+
+    unique_segments = _dedupe_keep_order(segments)
+    priority = {segment: index for index, segment in enumerate(COURSE_SEGMENT_VALUES)}
+    unique_segments.sort(key=lambda item: priority.get(item, len(priority)))
+    return "、".join(unique_segments)
+
+
+def build_relation_snapshot(relations: List[Dict[str, Any]],
+                            student: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    """构建主表责任关系与筛选标签快照。
+
+    Args:
+        relations: 责任关系明细列表。
+        student: 学生扁平或嵌套记录，用于课程段/年龄段兜底推算。
+
+    Returns:
+        含RELATION_MAIN_FIELDS所有字段的字典。
+    """
+    current_advisors: List[str] = []
+    historical_advisors: List[str] = []
+    advisor_notes: List[str] = []
+    safe_student = student or {}
+
+    for relation in relations or []:
+        if not isinstance(relation, dict) or not _is_consultant_relation(relation):
+            continue
+        status = normalize_relation_status(relation.get("关系状态"))
+        owner = _get_relation_owner(relation)
+        current_value = _clean_text(relation.get("当前顾问"))
+        history_value = _clean_text(relation.get("历史顾问"))
+        note = _clean_text(relation.get("关系备注", relation.get("顾问关系备注", "")))
+
+        if current_value:
+            current_advisors.extend(_split_multi_value(current_value))
+        if history_value:
+            historical_advisors.extend(_split_multi_value(history_value))
+        if owner:
+            if status == "当前":
+                current_advisors.append(owner)
+            elif status in {"历史", "已交接"}:
+                historical_advisors.append(owner)
+            elif status == "待确认" and not current_value:
+                historical_advisors.append(owner)
+        if note:
+            advisor_notes.append(note)
+
+    course_text_parts = [
+        safe_student.get("在读课程", ""),
+        safe_student.get("已报名课程", ""),
+        safe_student.get("推荐产品方向", ""),
+    ]
+    course_group = safe_student.get("课程成果", {})
+    if isinstance(course_group, dict):
+        course_text_parts.extend([course_group.get("在读课程", ""), course_group.get("已报名课程", "")])
+    course_text = "、".join(_clean_text(part) for part in course_text_parts if _clean_text(part))
+
+    snapshot = {field: "" for field in RELATION_MAIN_FIELDS}
+    snapshot["当前顾问"] = "、".join(_dedupe_keep_order(current_advisors))
+    snapshot["历史顾问"] = "、".join(_dedupe_keep_order(historical_advisors))
+    snapshot["顾问关系备注"] = " | ".join(_dedupe_keep_order(advisor_notes))
+    snapshot["交接状态"] = determine_handoff_status(relations)
+    snapshot["归属老师标签"] = build_teacher_tags(relations)
+    snapshot["课程段标签"] = build_course_segment_tags(relations, course_text)
+    snapshot["年龄段标签"] = infer_age_segment(safe_student.get("年龄", ""), safe_student.get("年级", ""))
+    return snapshot
 
 
 # ============================================================
@@ -248,6 +759,7 @@ def create_empty_student_record(name: str, campus: str, role: str) -> Dict[str, 
         "课程成果": {f: "" for f in D_FIELDS},            # D1（原有）
         "学情履历": {f: "" for f in D2_FIELDS},           # D2（新增）
         "家庭背景_老师补充": "",                           # B_cross_teacher（新增）
+        "责任关系": [],                                      # G责任关系明细（v1.8.0新增）
         "学员细节备注": "",
         "AI补齐": None,
         "决策标签": None,
@@ -1435,13 +1947,62 @@ if __name__ == "__main__":
 
     print("\n=== 列数验证 ===")
     print(f"SUMMARY_COLUMNS 长度: {len(SUMMARY_COLUMNS)}")
-    assert len(SUMMARY_COLUMNS) == 55, f"SUMMARY_COLUMNS应为55列, 实际{len(SUMMARY_COLUMNS)}"
+    assert len(SUMMARY_COLUMNS) == 59, f"SUMMARY_COLUMNS应为59列, 实际{len(SUMMARY_COLUMNS)}"
     print(f"CONSULTANT_COLUMNS 长度: {len(CONSULTANT_COLUMNS)}")
-    assert len(CONSULTANT_COLUMNS) == 24, f"CONSULTANT_COLUMNS应为24列, 实际{len(CONSULTANT_COLUMNS)}"
+    assert len(CONSULTANT_COLUMNS) == 28, f"CONSULTANT_COLUMNS应为28列, 实际{len(CONSULTANT_COLUMNS)}"
     print(f"TEACHER_COLUMNS 长度: {len(TEACHER_COLUMNS)}")
-    assert len(TEACHER_COLUMNS) == 31, f"TEACHER_COLUMNS应为31列, 实际{len(TEACHER_COLUMNS)}"
+    assert len(TEACHER_COLUMNS) == 34, f"TEACHER_COLUMNS应为34列, 实际{len(TEACHER_COLUMNS)}"
     print(f"B2_FIELDS 长度: {len(B2_FIELDS)}")
     assert len(B2_FIELDS) == 9, f"B2_FIELDS应为9字段, 实际{len(B2_FIELDS)}"
+
+    # ===== v1.8.1 新增自测：calculate_credibility =====
+    print("\n=== calculate_credibility 测试（4种场景）===")
+
+    # 场景1：低可信度 — flat 字段含不确定关键词
+    student_low = {"来源角色": ["顾问"], "冲突标注": ""}
+    flat_low = {"家长职业与单位": "好像是在银行工作", "家庭结构": "", "冲突标注": "", "年龄段标签": ""}
+    cred_low = calculate_credibility(student_low, flat_low)
+    print(f"场景1-低可信度: {cred_low}")
+    assert cred_low == "低可信度", f"应返回'低可信度', 实际: {cred_low}"
+
+    # 场景2：待验证 — 冲突标注非空
+    student_verify = {"来源角色": ["顾问"], "冲突标注": "冲突字段: 成绩水平"}
+    flat_verify = {"家长职业与单位": "医生", "家庭结构": "三口之家",
+                   "学校名称": "实验小学", "冲突标注": "冲突字段: 成绩水平",
+                   "年龄段标签": "小学中段"}
+    cred_verify = calculate_credibility(student_verify, flat_verify)
+    print(f"场景2-待验证(冲突): {cred_verify}")
+    assert cred_verify == "待验证", f"应返回'待验证', 实际: {cred_verify}"
+
+    # 场景3：高可信度 — 顾问+老师双来源且无冲突
+    student_high = {"来源角色": ["顾问", "老师"], "冲突标注": ""}
+    flat_high = {"家长职业与单位": "教师/事业单位", "家庭结构": "四口之家",
+                 "学校名称": "第一小学", "成绩水平": "优秀",
+                 "冲突标注": "", "年龄段标签": "小学高段"}
+    cred_high = calculate_credibility(student_high, flat_high)
+    print(f"场景3-高可信度: {cred_high}")
+    assert cred_high == "高可信度", f"应返回'高可信度', 实际: {cred_high}"
+
+    # 场景4：中可信度 — 默认情况
+    student_mid = {"来源角色": ["顾问"], "冲突标注": ""}
+    flat_mid = {"家长职业与单位": "个体户", "家庭结构": "三代同堂",
+                "学校名称": "中心学校", "冲突标注": "", "年龄段标签": "低龄段"}
+    cred_mid = calculate_credibility(student_mid, flat_mid)
+    print(f"场景4-中可信度: {cred_mid}")
+    assert cred_mid == "中可信度", f"应返回'中可信度', 实际: {cred_mid}"
+
+    # 场景5：待验证 — 所有主观字段为空
+    student_empty = {"来源角色": ["顾问"], "冲突标注": ""}
+    flat_empty = {"家长职业与单位": "", "家庭结构": "", "教育氛围": "",
+                  "居住小区": "", "家长规划目标": "", "家长教育取向": "",
+                  "家长竞赛认知": "", "学校名称": "", "成绩水平": "",
+                  "性格特点": "", "兴趣偏好": "", "课堂表现": "",
+                  "冲突标注": "", "年龄段标签": "小学中段"}
+    cred_empty = calculate_credibility(student_empty, flat_empty)
+    print(f"场景5-待验证(全空): {cred_empty}")
+    assert cred_empty == "待验证", f"应返回'待验证', 实际: {cred_empty}"
+
+    print("calculate_credibility 全部通过 ✓")
 
     # 验证 create_empty_student_record 新增字段
     print("\n=== create_empty_student_record 验证 ===")

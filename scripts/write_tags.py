@@ -41,6 +41,7 @@ from utils import (
     calculate_referral_potential, calculate_priority,
     calculate_student_profile,
     match_recommendation, print_script_result,
+    build_course_segment_tags, infer_age_segment,
 )
 
 
@@ -92,8 +93,8 @@ def calculate_tags_for_student(student: Dict[str, Any],
     thresholds = config.get("决策标签阈值", {})
     rules = config.get("推荐规则", [])
 
-    # 提取字段值
-    occupation = student.get("家长职业", "")
+    # 提取字段值（v1.8.1：家长职业与单位为合并字段）
+    occupation = student.get("家长职业与单位", "")
     housing_price = student.get("小区房价段", "")
     consumption = student.get("家庭消费力", "")
     learning_duration = student.get("学习时长", "")
@@ -197,7 +198,13 @@ def write_tags_xlsx(students: List[Dict[str, Any]],
     if "学情画像" in headers:
         profile_col_idx = headers.index("学情画像") + 1  # 1-based
 
-    # 写入决策标签和学情画像
+    # 找到v1.8关系与筛选标签列索引。若旧汇总表无新增列，则保持兼容不新增列。
+    relation_col_map = {}
+    for relation_col in ["课程段标签", "年龄段标签"]:
+        if relation_col in headers:
+            relation_col_map[relation_col] = headers.index(relation_col) + 1
+
+    # 写入决策标签和学情画像；同时轻量补算缺失的课程段/年龄段标签。
     for row_idx, (student, tags) in enumerate(zip(students, tags_list), 2):
         if "支付力" in tag_col_map:
             ws.cell(row=row_idx, column=tag_col_map["支付力"], value=tags["支付力"])
@@ -215,6 +222,25 @@ def write_tags_xlsx(students: List[Dict[str, Any]],
             profile_tags = tags.get("学情画像", [])
             profile_text = "、".join(profile_tags) if profile_tags else ""
             ws.cell(row=row_idx, column=profile_col_idx, value=profile_text)
+
+        # v1.8.0 轻量补算课程段标签/年龄段标签，不改变课程推荐核心逻辑。
+        if "课程段标签" in relation_col_map:
+            current_segment = str(student.get("课程段标签", "") or "").strip()
+            if not current_segment:
+                course_text = "、".join([
+                    str(student.get("在读课程", "") or ""),
+                    str(student.get("已报名课程", "") or ""),
+                    str(student.get("推荐产品方向", "") or ""),
+                ])
+                ws.cell(row=row_idx, column=relation_col_map["课程段标签"], value=build_course_segment_tags([], course_text))
+        if "年龄段标签" in relation_col_map:
+            current_age_segment = str(student.get("年龄段标签", "") or "").strip()
+            if not current_age_segment:
+                ws.cell(
+                    row=row_idx,
+                    column=relation_col_map["年龄段标签"],
+                    value=infer_age_segment(student.get("年龄", ""), student.get("年级", "")),
+                )
 
     # 应用条件格式
     for tag_col_name in ["支付力", "续费风险", "转介绍潜力"]:

@@ -28,8 +28,10 @@ from utils import (
     A_FIELDS, B_FIELDS, B2_FIELDS, C_FIELDS, D_FIELDS, D2_FIELDS,
     E_FIELDS, CROSS_FIELDS,
     CONSULTANT_COLUMNS, TEACHER_COLUMNS, COMPLETION_COLUMNS,
+    RESPONSIBILITY_DETAIL_COLUMNS,
     get_excel_styles, apply_header_style, calculate_completion,
     calculate_current_grade, calculate_enrollment_duration,
+    build_relation_snapshot, normalize_course_segment,
     print_script_result,
 )
 
@@ -57,6 +59,11 @@ def flatten_student_record(record: Dict[str, Any], role: str) -> Dict[str, str]:
     flat["年龄"] = record.get("年龄", "")
     flat["所在校区"] = record.get("所在校区", record.get("校区", ""))
 
+    relations = record.get("责任关系", [])
+    if not isinstance(relations, list):
+        relations = []
+    relation_snapshot = build_relation_snapshot(relations, flat)
+
     if role == "顾问":
         # 顾问版：B1家庭背景字段
         family = record.get("家庭背景", {})
@@ -67,6 +74,10 @@ def flatten_student_record(record: Dict[str, Any], role: str) -> Dict[str, str]:
         funnel = record.get("销售漏斗", {})
         for f in B2_FIELDS:
             flat[f] = funnel.get(f, "") if funnel else ""
+
+        # v1.8.0 顾问关系快照字段
+        for f in ["当前顾问", "历史顾问", "顾问关系备注", "交接状态"]:
+            flat[f] = record.get(f, relation_snapshot.get(f, ""))
     else:
         # 老师版：C在校情况 + D1课程成果字段
         school = record.get("在校情况", {})
@@ -93,11 +104,52 @@ def flatten_student_record(record: Dict[str, Any], role: str) -> Dict[str, str]:
         # 老师版：B_cross_teacher 家庭背景(老师补充)
         flat["家庭背景(老师补充)"] = record.get("家庭背景_老师补充", "")
 
+        # v1.8.0 老师关系与筛选标签快照字段
+        enriched_snapshot = build_relation_snapshot(relations, flat)
+        for f in ["归属老师标签", "课程段标签", "年龄段标签"]:
+            flat[f] = record.get(f, enriched_snapshot.get(f, ""))
+
     # E学员细节备注（顾问+老师均可补充）
     for f in E_FIELDS:
         flat[f] = record.get(f, "")
 
     return flat
+
+
+def build_responsibility_detail_rows(record: Dict[str, Any], role: str,
+                                     source_file: str = "") -> List[Dict[str, str]]:
+    """从学生缓存记录构建责任关系明细sheet行。
+
+    Args:
+        record: 学生记录字典。
+        role: 采集人角色。
+        source_file: 来源文件名，导出阶段默认空。
+
+    Returns:
+        责任关系明细行列表；旧缓存无责任关系时返回空列表。
+    """
+    relations = record.get("责任关系", [])
+    if not isinstance(relations, list):
+        relations = []
+
+    rows: List[Dict[str, str]] = []
+    for relation in relations:
+        if not isinstance(relation, dict):
+            continue
+        row: Dict[str, str] = {column: "" for column in RESPONSIBILITY_DETAIL_COLUMNS}
+        row["姓名"] = str(relation.get("姓名", record.get("姓名", "")) or "")
+        row["年级"] = str(relation.get("年级", record.get("年级", "")) or "")
+        row["关系类型"] = str(relation.get("关系类型", "") or "")
+        row["关系状态"] = str(relation.get("关系状态", "") or "")
+        row["负责人姓名"] = str(relation.get("负责人姓名", relation.get("负责人", "")) or "")
+        row["课程段"] = normalize_course_segment(relation.get("课程段", ""))
+        row["关系备注"] = str(relation.get("关系备注", relation.get("顾问关系备注", "")) or "")
+        row["来源角色"] = str(relation.get("来源角色", role) or "")
+        row["来源文件"] = str(relation.get("来源文件", source_file) or "")
+        row["更新时间"] = str(relation.get("更新时间", record.get("采集时间", "")) or "")
+        if any(row.get(column, "") for column in ["关系类型", "关系状态", "负责人姓名", "课程段", "关系备注"]):
+            rows.append(row)
+    return rows
 
 
 def export_xlsx(cache: Dict[str, Any], output_path: str) -> bool:
@@ -118,6 +170,10 @@ def export_xlsx(cache: Dict[str, Any], output_path: str) -> bool:
     collector_name = cache.get("采集人姓名", "")
     records = cache.get("已采集记录", [])
     roster = cache.get("名单", [])
+    if not isinstance(records, list):
+        records = []
+    if not isinstance(roster, list):
+        roster = []
 
     # 确定列顺序
     columns = CONSULTANT_COLUMNS if role == "顾问" else TEACHER_COLUMNS
@@ -147,7 +203,25 @@ def export_xlsx(cache: Dict[str, Any], output_path: str) -> bool:
     # 冻结首行
     ws.freeze_panes = "A2"
 
-    # ===== Sheet2: 采集完成率 =====
+    # ===== Sheet2: 责任关系明细 =====
+    ws_rel = wb.create_sheet("责任关系明细")
+    for col_idx, col_name in enumerate(RESPONSIBILITY_DETAIL_COLUMNS, 1):
+        ws_rel.cell(row=1, column=col_idx, value=col_name)
+    apply_header_style(ws_rel, row=1, col_count=len(RESPONSIBILITY_DETAIL_COLUMNS))
+
+    relation_row_idx = 2
+    for record in records:
+        relation_rows = build_responsibility_detail_rows(record, role)
+        for relation_row in relation_rows:
+            for col_idx, col_name in enumerate(RESPONSIBILITY_DETAIL_COLUMNS, 1):
+                ws_rel.cell(row=relation_row_idx, column=col_idx, value=relation_row.get(col_name, ""))
+            relation_row_idx += 1
+
+    for col_idx in range(1, len(RESPONSIBILITY_DETAIL_COLUMNS) + 1):
+        ws_rel.column_dimensions[get_column_letter(col_idx)].width = 16
+    ws_rel.freeze_panes = "A2"
+
+    # ===== Sheet3: 采集完成率 =====
     ws2 = wb.create_sheet("采集完成率")
     for col_idx, col_name in enumerate(COMPLETION_COLUMNS, 1):
         ws2.cell(row=1, column=col_idx, value=col_name)
@@ -164,7 +238,7 @@ def export_xlsx(cache: Dict[str, Any], output_path: str) -> bool:
     for col_idx in range(1, len(COMPLETION_COLUMNS) + 1):
         ws2.column_dimensions[get_column_letter(col_idx)].width = 15
 
-    # ===== Sheet3: 待办名单（未采/已采标记） =====
+    # ===== Sheet4: 待办名单（未采/已采标记） =====
     ws3 = wb.create_sheet("名单进度")
     ws3.cell(row=1, column=1, value="姓名")
     ws3.cell(row=1, column=2, value="状态")
