@@ -9,6 +9,7 @@
 决策标签：
 1. 支付力等级（高/中/低）- 从配置读支付力阈值
 2. 续费风险（高/中/低）- 从配置读续费风险阈值
+   v1.7.0：优先D1"续费历史"（老师侧），D1为空回退B2.09"顾问侧续费历史"
 3. 转介绍潜力（高/中/低）- 从配置读转介绍潜力阈值
 4. 跟进优先级（1-5星）- 从配置读权重逻辑
 5. 推荐产品方向 - 从配置读推荐规则匹配
@@ -106,10 +107,16 @@ def calculate_tags_for_student(student: Dict[str, Any],
     payment_thresholds = thresholds.get("支付力", {})
     payment = calculate_payment_level(occupation, housing_price, consumption, payment_thresholds)
 
-    # 2. 续费风险
+    # 2. 续费风险（v1.7.0：优先D1老师侧续费历史，D1为空回退B2.09顾问侧续费历史）
     risk_thresholds = thresholds.get("续费风险", {})
     learning_months = parse_learning_months(learning_duration)
+    # D1"续费历史"（老师侧）为第一信源
     renewal_count = parse_renewal_count(renewal_history)
+    # D1为空时回退B2.09"顾问侧续费历史"（顾问侧）作补充参考
+    if renewal_count == 0:
+        consultant_renewal_history = student.get("顾问侧续费历史", "")
+        if consultant_renewal_history:
+            renewal_count = parse_renewal_count(consultant_renewal_history)
     risk = calculate_renewal_risk(learning_months, class_performance, renewal_count, risk_thresholds)
 
     # 3. 转介绍潜力

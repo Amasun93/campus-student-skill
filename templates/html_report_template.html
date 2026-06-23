@@ -440,6 +440,19 @@ body {
       </table>
     </div>
   </div>
+
+  <!-- 课程级精准推荐模块（v1.7.0新增，课程产品库有数据时显示） -->
+  <div class="card" id="courseRecommendCard" style="display:none;">
+    <div class="card-title">🎯 课程级精准推荐</div>
+    <div class="table-scroll-hint">← 左右滑动查看更多 →</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="courseRecommendTable">
+        <thead><tr><th>课程名</th><th>核心卖点</th><th>开班数</th><th>推荐学员数</th><th>推荐学员</th></tr></thead>
+        <tbody id="courseRecommendBody"></tbody>
+      </table>
+    </div>
+    <div id="courseRecommendEmpty" style="display:none;text-align:center;padding:20px;color:#aaa;">暂无课程级推荐数据</div>
+  </div>
 </div>
 
 <div class="footer">
@@ -701,6 +714,9 @@ function renderRecommend() {
   renderProfileRecommend();
   renderExamPathRecommend();
   renderAttentionRecommend();
+
+  // v1.7.0新增：课程级精准推荐
+  renderCourseRecommend();
 }
 
 function filterRecommend() {
@@ -913,6 +929,38 @@ function renderAttentionRecommend() {
     html += '</tr>';
   });
   tbody.innerHTML = html;
+}
+
+// ===== v1.7.0新增：课程级精准推荐 =====
+function renderCourseRecommend() {
+  const courseRec = (REPORT_DATA.统计 || {}).课程级推荐 || [];
+  const card = document.getElementById('courseRecommendCard');
+  const tbody = document.getElementById('courseRecommendBody');
+  const empty = document.getElementById('courseRecommendEmpty');
+
+  // 课程产品库为空 → 隐藏模块，保持方向级推荐
+  if (!courseRec || courseRec.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+
+  card.style.display = 'block';
+  let html = '';
+  courseRec.forEach(c => {
+    var sellingPoints = c['核心卖点'] || [];
+    var pointsText = Array.isArray(sellingPoints) ? sellingPoints.join('；') : String(sellingPoints);
+    var students = c['推荐学员名单'] || [];
+    var studentsText = Array.isArray(students) ? students.join('、') : String(students);
+    html += '<tr>';
+    html += '<td><strong>' + (c['课程名']||'') + '</strong></td>';
+    html += '<td>' + pointsText + '</td>';
+    html += '<td>' + (c['当前开班数']||0) + '个班</td>';
+    html += '<td><span class="tag tag-medium">' + (c['推荐学员数']||0) + '人</span></td>';
+    html += '<td>' + studentsText + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+  empty.style.display = 'none';
 }
 
 // ===== 初始化 =====

@@ -8,7 +8,8 @@
 
 支持增量更新模式：识别新增学生追加 + 已存在学生字段变更更新。
 
-v1.6.0: 新增B2销售漏斗/D2学情履历/家庭背景(老师补充)字段合并，汇总表52列。
+v1.6.0: 新增B2销售漏斗/D2学情履历/家庭背景(老师补充)字段合并，汇总表54列。
+v1.7.0: B2.09顾问侧续费历史加入汇总，汇总表55列；D1续费历史(老师侧)+B2.09顾问侧续费历史并列。
 
 用法：
     # 全量合并
@@ -383,10 +384,10 @@ def write_summary_xlsx(merged_students: List[Dict[str, Any]],
 
 
 def flatten_merged_student(student: Dict[str, Any]) -> Dict[str, str]:
-    """将合并后的学生记录扁平化为汇总表列对应的字典（54列）。
+    """将合并后的学生记录扁平化为汇总表列对应的字典（v1.7.0共55列）。
 
     按SUMMARY_COLUMNS顺序输出，包括：
-    - A基础标识(4) + B1家庭背景(9) + B2销售漏斗(6进汇总) + C在校情况(6)
+    - A基础标识(4) + B1家庭背景(9) + B2销售漏斗(7进汇总，含B2.09顾问侧续费历史) + C在校情况(6)
     + D1课程成果(5) + D2学情履历(8进汇总) + E(1) + 三路信源(1)
     + 冲突标注(1) + AI补齐(7) + 决策标签(5) + 学情画像(1)
 
@@ -409,9 +410,10 @@ def flatten_merged_student(student: Dict[str, Any]) -> Dict[str, str]:
     for f in B_FIELDS:
         flat[f] = family.get(f, "") if family else ""
 
-    # B2销售漏斗（6列进汇总；最初兴趣点/介绍过的产品不进汇总）
+    # B2销售漏斗（7列进汇总；最初兴趣点/介绍过的产品不进汇总；v1.7.0新增B2.09顾问侧续费历史）
     funnel = student.get("销售漏斗", {})
-    b2_summary_fields = ["客户来源", "对接次数", "累计跟进时长", "当前阶段", "堵点", "顾问复盘"]
+    b2_summary_fields = ["客户来源", "对接次数", "累计跟进时长", "当前阶段", "堵点", "顾问复盘",
+                         "顾问侧续费历史"]
     for f in b2_summary_fields:
         flat[f] = funnel.get(f, "") if funnel else ""
 

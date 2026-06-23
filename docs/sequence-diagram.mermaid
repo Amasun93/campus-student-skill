@@ -1,294 +1,115 @@
-%% 校区学员情况管理 Skill — 时序图集合
-%% 架构师 高见远（Gao） v1.0
+%% 校区学员情况管理 Skill v1.7.0 — 时序图
+%% 架构师：高见远
 
-%% ===== 4.1 三角色路由时序图 =====
+%% ===== 时序图1：课程产品导入流程 =====
 sequenceDiagram
-    actor U as 用户
-    participant W as workbuddy
-    participant S as SKILL.md
-    participant F as 文件系统
+    participant U as 用户(老师/顾问)
+    participant X as 小朱(指令层AI)
+    participant C as 校区配置.json
 
-    U->>W: "用学情管理skill"
-    W->>S: 加载SKILL.md
-    S->>U: 小朱打招呼："嗨！我是校区小助手小朱"
-    S->>U: "请问您是顾问、老师还是校长？"
-    U->>S: "我是老师"
-    
-    alt 顾问
-        S->>U: 角色化开场："顾问老师好～我能帮您把家长情况整理成表格"
-        S->>U: "您在哪个校区？"
-        U->>S: "xx校区"
-        S->>S: 进入顾问采集模式(录A+B)
-    else 老师
-        S->>U: 角色化开场："老师好～我能帮您把手上学生情况整理成档案"
-        S->>U: "您在哪个校区？"
-        U->>S: "xx校区"
-        S->>S: 进入老师采集模式(录A+C+D)
-    else 校长
-        S->>U: 角色化开场："校长好～我能帮您汇总全校学员情况"
-        S->>U: "您在哪个校区？"
-        U->>S: "xx校区"
-        S->>U: 显示功能菜单：1汇总 2AI补齐 3配置 4增量 5推标签 6HTML报告
-        U->>S: 选择功能
-        S->>S: 进入对应校长工作流
-    end
-
-%% ===== 4.2 场景1：字段引导式采集时序图 =====
-sequenceDiagram
-    actor U as 顾问/老师
-    participant W as workbuddy
-    participant S as SKILL.md
-    participant F as 文件系统(JSON缓存)
-
-    U->>W: 选一个学生采集
-    W->>S: 进入采集循环
-    
-    loop 字段引导式4步循环
-        S->>U: Step1: 给字段提示（"说说这孩子家里情况"）
-        U->>S: Step2: 自由口述
-        S->>S: Step3: AI提取结构化信息
-        S->>F: 写入JSON缓存
-        S->>S: Step4: 检查缺失关键字段
-        alt 有缺失关键字段
-            S->>U: 只追问缺失关键信息
-            U->>S: 补充回答
-            S->>S: 提取并写入缓存
-        else 无缺失关键字段
-            S->>U: "采完了！[打勾] 完成率x/x"
-            S->>U: 情绪价值（适时）
-        end
-    end
-    
-    U->>S: "采完了"或"继续下一个"
-    alt 采完退出
-        S->>F: 调用export_student_xlsx.py
-        F->>F: JSON缓存→个人学员表.xlsx
-        S->>U: "导出好了，记得交给校长汇总哦"
-    else 继续下一个
-        S->>S: 回到采集循环
-    end
-
-%% ===== 4.3 场景3：汇总合并时序图 =====
-sequenceDiagram
-    actor P as 校长
-    participant W as workbuddy
-    participant S as SKILL.md
-    participant F as 文件系统
-    participant PY as merge_xlsx.py
-
-    P->>W: 上传多份个人学员表.xlsx
-    W->>S: 进入汇总合并场景
-    S->>F: 读取所有xlsx文件
-    S->>PY: 调用merge_xlsx.py(文件列表)
-    
-    PY->>PY: 解析每份xlsx为StudentRecord
-    PY->>PY: 按姓名(完整含姓)合并
-    PY->>PY: 重名用年级对齐
-    PY->>PY: A基础标识合并去重(含校区)
-    PY->>PY: B/C/D字段冲突检测
-    alt 有冲突
-        PY->>PY: A+C方案：双保留，标注来源
-        PY->>PY: 格式化："顾问认为:xxx / 老师反馈:yyy [待核实]"
-        PY->>PY: 冲突记录写入冲突清单sheet
-    end
-    PY->>PY: 计算各校区/整体完成率
-    PY->>F: 输出 合并汇总表.xlsx（含4个sheet）
-    PY->>S: 返回结果（总数/冲突数/完成率）
-    
-    S->>P: "汇总表出来了！共xx人，xx条冲突待核实"
-    S->>P: "各校区完成率：xx校区60%，yy校区40%"
-    
-    Note over S,P: v1.3关键：汇总表出来后，小朱主动询问是否配置
-    S->>P: "接下来我可以帮您做更深的分析，需要先了解您校区的推荐思路"
-    S->>P: "您想现在做配置吗？还是先看看？"
-    alt 校长选"现在配置"
-        S->>S: 进入场景0.5校准环节
-    else 校长选"先看看"
-        S->>S: 暂不配置，校长可随时回来
-    end
-
-%% ===== 4.4 场景0.5+5：校准环节+推荐规则配置时序图 =====
-sequenceDiagram
-    actor P as 校长
-    participant W as workbuddy
-    participant S as SKILL.md
-    participant F as 文件系统
-
-    Note over S: 前置：汇总表已生成，校长需要做画像分析，且无校区配置.json
-    
-    S->>P: "您想现在做配置吗？还是先看看？"
-    P->>S: "现在配置吧"
-    S->>P: "好嘞，咱们聊几句就行～"
-    
-    S->>P: Q1: "什么样的家庭算支付力高？"
-    P->>S: 口述支付力判定逻辑
-    S->>S: AI提取结构化阈值
-    
-    S->>P: Q2: "续费风险哪个信号最关键？"
-    P->>S: 口述续费风险权重
-    S->>S: AI提取结构化阈值
-    
-    S->>P: Q3: "什么样的家长转介绍潜力大？"
-    P->>S: 口述转介绍逻辑
-    S->>S: AI提取结构化阈值
-    
-    S->>P: Q4: "跟进优先级怎么排？"
-    P->>S: 口述优先级排序逻辑
-    S->>S: AI提取结构化阈值
-    
-    S->>P: Q5: "推荐课程主要看哪些维度？"
-    P->>S: 口述推荐维度
-    S->>S: AI提取条件维度
-    
-    S->>P: Q6: "续费风险要不要考虑距上次沟通天数？"
-    P->>S: "要/不要"
-    S->>S: 记录是否纳入
-    
-    S->>P: Q7: "校区现在有哪些课程产品？"
-    P->>S: 列举产品
-    S->>S: 记录产品列表
-    
-    S->>P: Q8: "要不要生成HTML报告？需要哪几页？"
-    P->>S: "要，三页都要"
-    S->>S: 记录报告偏好
-    
-    S->>S: 组装校区配置.json
-    S->>F: 写入 校区配置.json
-    S->>P: "了解您了！以后我就按这个帮您分析。随时能改。"
-    S->>S: 进入画像分析工作流
-
-%% ===== 4.5 场景4：AI补齐字段时序图 =====
-sequenceDiagram
-    actor P as 校长
-    participant W as workbuddy
-    participant S as SKILL.md
-    participant WS as WebSearch
-    participant F as 文件系统
-
-    P->>W: 选择"AI补齐字段"
-    W->>S: 进入AI补齐场景
-    S->>F: 读取 合并汇总表.xlsx
-    S->>S: 提取"居住小区""学校名称"字段
-    
-    loop 每个学生
-        S->>WS: 检索：小区名+城市名→房价段/住户画像
-        WS-->>S: 返回搜索结果
-        S->>WS: 检索：学校名→学校层次/是否科技特色校
-        WS-->>S: 返回搜索结果
-        S->>WS: 检索：小区名+编程→周边竞品机构
-        WS-->>S: 返回搜索结果
-        S->>S: 综合职业+小区推算家庭消费力
-        S->>S: 所有值标注"AI补齐，请人工核实"
-    end
-    
-    alt 检索失败
-        S->>S: 该字段标"待补齐"，不阻塞流程
-    end
-    
-    S->>F: 输出 带补齐字段的汇总表.xlsx
-    S->>P: "补齐完成！共补齐xx个字段，xx个待补齐"
-
-%% ===== 4.6 场景6：决策标签推算时序图 =====
-sequenceDiagram
-    actor P as 校长
-    participant W as workbuddy
-    participant S as SKILL.md
-    participant F as 文件系统
-    participant PY as write_tags.py
-
-    P->>W: 选择"推算决策标签"
-    W->>S: 进入决策标签推算场景
-    
-    S->>F: 检查是否存在校区配置.json
-    alt 无配置
-        S->>P: "需要先配置推荐思路，您想现在配置吗？"
-        alt 校长同意
-            S->>S: 进入场景0.5校准环节
-        else 校长拒绝
-            S->>P: "好的，您可以随时回来配置"
-            S-->>W: 退出（无法推算）
-        end
-    end
-    
-    S->>F: 读取 带补齐字段的汇总表.xlsx
-    S->>F: 读取 校区配置.json
-    
-    S->>PY: 调用write_tags.py(汇总表路径, 配置路径)
-    
-    loop 每个学生
-        PY->>PY: 读配置阈值→计算支付力等级（高/中/低）
-        PY->>PY: 读配置阈值→计算续费风险（高/中/低）
-        PY->>PY: 读配置阈值→计算转介绍潜力（高/中/低）
-        PY->>PY: 读配置权重→加权计算跟进优先级（1-5星）
-        PY->>PY: 读推荐规则→匹配推荐产品方向
-        alt 无匹配规则
-            PY->>PY: 标"待配置"
-        end
-    end
-    
-    PY->>F: 输出 带标签的最终汇总表.xlsx（条件格式红黄绿）
-    PY->>S: 返回结果
-    
-    S->>P: "标签推算完成！高净值xx人，高风险xx人"
-
-%% ===== 4.7 场景7：HTML报告生成时序图 =====
-sequenceDiagram
-    actor P as 校长
-    participant W as workbuddy
-    participant S as SKILL.md
-    participant F as 文件系统
-    participant PY as generate_html_report.py
-
-    P->>W: 选择"生成HTML报告"
-    W->>S: 进入HTML报告场景
-    S->>P: "需要哪个都做，还是挑着来？（三页介绍）"
-    P->>S: "三页都要"
-    
-    S->>F: 读取 带标签的最终汇总表.xlsx
-    S->>F: 读取 校区配置.json（报告偏好）
-    
-    S->>PY: 调用generate_html_report.py(汇总表路径, 配置路径)
-    
-    PY->>PY: 解析汇总表数据
-    PY->>PY: 计算统计数据（高净值占比/小区分布/学校层次分布/推荐分布）
-    PY->>PY: 将数据序列化为JSON
-    PY->>PY: 读取html_report_template.html模板
-    PY->>PY: 注入JSON数据到<script>标签
-    PY->>PY: 内嵌CSS+JS
-    
-    PY->>F: 输出 校区分析报告.html（单文件）
-    PY->>S: 返回结果
-    
-    S->>P: "报告生成好了！浏览器打开就能看，三页都有"
-
-%% ===== 4.8 场景8：增量更新时序图 =====
-sequenceDiagram
-    actor P as 校长
-    participant W as workbuddy
-    participant S as SKILL.md
-    participant F as 文件系统
-    participant PY as merge_xlsx.py
-
-    P->>W: 上传新的个人表+选择"增量更新"
-    W->>S: 进入增量更新场景
-    S->>F: 读取已有汇总表.xlsx
-    S->>F: 读取新的个人表.xlsx
-    
-    S->>PY: 调用merge_xlsx.py(新表, 汇总表, 增量模式=true)
-    
-    loop 每条新记录
-        PY->>PY: 按姓名+年级匹配
-        alt 新增学生
-            PY->>PY: 追加到汇总表
-        else 已存在学生
-            PY->>PY: 检测字段变更
-            alt 有变更
-                PY->>PY: 保留旧值标注，写入新值
-                PY->>PY: 变更记录写入变更记录sheet
+    U->>X: 进入课程推荐环节
+    X->>X: 检查校区配置.json是否有"课程产品库"
+    alt 课程产品库为空或不存在
+        X->>U: "您手上有课程大纲材料吗？小朱可以帮您把课程信息整理好"
+        alt 用户愿意导入
+            U->>X: 选择导入方式
+            alt 方式1：口述
+                U->>X: 口述课程信息（名称/类型/年级/卖点等）
+                X->>X: AI解析提取结构化字段
+            else 方式2：上传文件(.txt/.md/.docx)
+                U->>X: 上传文件
+                X->>X: 读取文件内容→AI解析提取结构化字段
+            else 方式3：粘贴文本
+                U->>X: 粘贴课程大纲文本
+                X->>X: AI解析提取结构化字段
             end
+            X->>U: 展示解析结果请求确认
+            alt 用户确认
+                U->>X: "对的"
+                X->>C: 写入"课程产品库"数组（增量追加）
+                X->>U: "记好了！还有其他课程要补充吗？"
+            else 用户修改
+                U->>X: 提出修改意见
+                X->>X: 更新结构化字段
+                X->>C: 写入"课程产品库"数组
+            end
+            X->>X: 继续推荐流程（课程产品库已有数据）
+        else 用户不愿导入
+            U->>X: "没有/暂时不用"
+            X->>X: 降级为PROFILE_COURSE_MAP方向级推荐
+            X->>U: "没事，小朱先按方向给您推荐"
         end
+    else 课程产品库已有数据
+        X->>X: 直接进入课程级推荐匹配
     end
-    
-    PY->>F: 输出 更新后的汇总表.xlsx
-    S->>S: 重新触发AI补齐+决策标签重算
-    S->>P: "增量更新完成！新增xx人，变更xx条记录"
+
+%% ===== 时序图2：推荐匹配升级流程 =====
+sequenceDiagram
+    participant S as 学员记录
+    participant U as utils.py
+    participant R as generate_html_report.py
+    participant H as HTML报告
+
+    R->>S: 读取带标签汇总表学员数据
+    R->>U: calculate_student_profile(student)
+    U-->>R: 返回学情画像标签列表
+
+    R->>R: 读取校区配置.json的"课程产品库"
+
+    alt 课程产品库非空
+        R->>U: match_course_products(profile_tags, course_library)
+        U->>U: 遍历课程产品库
+        U->>U: 检查"适合的学情画像标签"与学员标签交集
+        U->>U: 命中任一即匹配，按命中数降序排序
+        U-->>R: 返回匹配课程列表Top3
+
+        alt 有匹配课程
+            R->>U: generate_course_recommendation(student, course_library, PROFILE_COURSE_MAP)
+            U-->>R: 返回 course_level 推荐结果
+            R->>R: 构建课程级推荐数据
+            R->>H: 注入课程级推荐数据
+            H->>H: renderCourseRecommend() 渲染
+        else 无匹配课程
+            R->>U: generate_course_recommendation() 降级
+            U-->>R: 返回 direction_level 推荐结果
+            R->>H: 注入方向级推荐数据
+            H->>H: renderProfileRecommend() 渲染
+        end
+    else 课程产品库为空
+        R->>U: generate_course_recommendation() 降级
+        U-->>R: 返回 direction_level 推荐结果
+        R->>H: 注入方向级推荐数据
+        H->>H: renderProfileRecommend() 渲染
+    end
+
+%% ===== 时序图3：B2.09字段全链路穿透流程 =====
+sequenceDiagram
+    participant C as 顾问采集
+    participant E as export_student_xlsx.py
+    participant M as merge_xlsx.py
+    participant W as write_tags.py
+    participant G as generate_html_report.py
+
+    C->>C: 顾问口述续费情况
+    C->>E: JSON缓存 销售漏斗.顾问侧续费历史
+    E->>E: flatten_student_record() 读B2_FIELDS(9字段)
+    E-->>C: 导出 个人学员表_顾问.xlsx（24列）
+
+    C->>M: 交付个人表给校长
+    M->>M: read_personal_xlsx() 读B2_FIELDS自动解析B2.09
+    M->>M: flatten_merged_student() B2汇总字段7列
+    M-->>M: 输出 合并汇总表.xlsx（55列）
+
+    M->>W: 带补齐汇总表
+    W->>W: calculate_tags_for_student()
+    alt D1续费历史非空
+        W->>W: 用D1老师侧续费历史推算续费风险
+    else D1为空且B2顾问侧续费历史非空
+        W->>W: 回退用B2顾问侧续费历史推算
+    end
+    W-->>W: 输出 带标签汇总表.xlsx（55列+标签）
+
+    W->>G: 带标签汇总表
+    G->>G: build_report_data() 含顾问侧续费历史
+    G->>G: 页3调用generate_course_recommendation()
+    G-->>G: 输出 校区分析报告.html（页3课程级推荐）

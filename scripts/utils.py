@@ -36,16 +36,17 @@ D_FIELDS: List[str] = ["已报名课程", "在读课程", "学习时长",
 # E. 学员细节备注字段（顾问+老师均可补充）
 E_FIELDS: List[str] = ["学员细节备注"]
 
-# B2. 销售漏斗字段（顾问主录，新增8字段）
+# B2. 销售漏斗字段（顾问主录，v1.7.0新增B2.09，共9字段）
 B2_FIELDS: List[str] = [
-    "客户来源",       # B2.01 选择题：大众点评/小红书/转介绍/公众号/地推/其他 ✅必填
-    "对接次数",       # B2.02 数字 ✅必填
-    "累计跟进时长",   # B2.03 文本"3周""2个月" ✅必填
-    "当前阶段",       # B2.04 选择题：新签挖需/诺访/在读更新 ✅必填
-    "最初兴趣点",     # B2.05 文本
-    "介绍过的产品",   # B2.06 文本
-    "堵点",           # B2.07 主观题
-    "顾问复盘",       # B2.08 AI生成+顾问确认，200字内
+    "客户来源",         # B2.01 选择题：大众点评/小红书/转介绍/公众号/地推/其他 ✅必填
+    "对接次数",         # B2.02 数字 ✅必填
+    "累计跟进时长",     # B2.03 文本"3周""2个月" ✅必填
+    "当前阶段",         # B2.04 选择题：新签挖需/诺访/在读更新 ✅必填
+    "最初兴趣点",       # B2.05 文本
+    "介绍过的产品",     # B2.06 文本
+    "堵点",             # B2.07 主观题
+    "顾问复盘",         # B2.08 AI生成+顾问确认，200字内
+    "顾问侧续费历史",   # B2.09 v1.7.0新增，文本
 ]
 
 # D2. 学情履历字段（老师主录，新增13字段）
@@ -81,6 +82,19 @@ PROFILE_TAG_PRIORITY: List[str] = [
     "兴趣探索型", "基础夯实型",
 ]
 
+# 学情画像标签→推荐课程方向映射（降级用，课程产品库为空或无匹配时使用）
+# v1.7.0：从 generate_html_report.py 移至 utils.py 作为唯一定义源，避免重复维护
+PROFILE_COURSE_MAP: Dict[str, str] = {
+    "竞赛冲刺型": "C++/信奥课程",
+    "高净值待挖型": "研学/VEX",
+    "兴趣探索型": "Scratch/机器人入门",
+    "科创潜力型": "机器人进阶/科创项目",
+    "续费稳定型": "进阶课程/续费",
+    "流失风险型": "体验课重新激活",
+    "谨慎观望型": "深度解答/试听",
+    "基础夯实型": "等级考培训",
+}
+
 # AI补齐层字段
 AI_FIELDS: List[str] = ["小区房价段", "住户画像", "周边学校",
                         "学校层次", "科技特色详情", "周边竞品",
@@ -90,21 +104,22 @@ AI_FIELDS: List[str] = ["小区房价段", "住户画像", "周边学校",
 TAG_FIELDS: List[str] = ["支付力", "续费风险", "转介绍潜力",
                          "跟进优先级", "推荐产品方向"]
 
-# 顾问版Excel列顺序（A + B + B2 + E）= 5+9+8+1 = 23列
+# 顾问版Excel列顺序（A + B + B2 + E）= 5+9+9+1 = 24列
 CONSULTANT_COLUMNS: List[str] = A_FIELDS + B_FIELDS + B2_FIELDS + E_FIELDS
 
 # 老师版Excel列顺序（A + C + D + D2 + E + B_cross_teacher）= 5+6+5+13+1+1 = 31列
 TEACHER_COLUMNS: List[str] = A_FIELDS + C_FIELDS + D_FIELDS + D2_FIELDS + E_FIELDS + CROSS_FIELDS
 
-# 汇总表主表列顺序（全部字段，52列）
+# 汇总表主表列顺序（全部字段，v1.7.0共55列）
 SUMMARY_COLUMNS: List[str] = [
     # A基础标识（4列）
     "校区", "姓名", "年级", "年龄",
     # B1家庭背景（9列）
     "家长职业", "单位性质", "家庭结构", "教育氛围", "居住小区",
     "家长规划目标", "家长教育取向", "家长竞赛认知", "对AI认知度",
-    # B2销售漏斗（6列进汇总；最初兴趣点/介绍过的产品不进汇总）
+    # B2销售漏斗（7列进汇总；最初兴趣点/介绍过的产品不进汇总；v1.7.0新增顾问侧续费历史）
     "客户来源", "对接次数", "累计跟进时长", "当前阶段", "堵点", "顾问复盘",
+    "顾问侧续费历史",  # B2.09 v1.7.0新增
     # C在校情况（6列）
     "学校名称", "成绩水平", "性格特点", "兴趣偏好", "课堂表现", "同伴关系",
     # D1课程成果（5列）
@@ -1089,6 +1104,140 @@ def calculate_student_profile(student: Dict[str, Any],
     return tags
 
 
+# ============================================================
+# v1.7.0 新增：课程产品库匹配与推荐函数
+# ============================================================
+
+def match_course_products(profile_tags: List[str],
+                          course_library: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """根据学情画像标签匹配课程产品库，返回匹配的课程列表。
+
+    匹配规则：
+    - 遍历课程产品库，检查每门课的"适合的学情画像标签"字段
+    - 学员画像标签命中课程标签列表中的任一，即视为匹配
+    - 多门课程匹配时，按命中标签数降序排序（命中越多优先级越高）
+    - 命中数相同时按课程库原始顺序稳定排序
+    - 返回Top 3门课程
+
+    Args:
+        profile_tags: 学员学情画像标签列表，如["竞赛冲刺型", "续费稳定型"]
+        course_library: 课程产品库列表，每项含"适合的学情画像标签"字段
+
+    Returns:
+        匹配的课程列表（按适合度排序），每项含课程名+卖点+开班数+匹配标签；
+        无匹配返回空列表
+    """
+    if not profile_tags or not course_library:
+        return []
+
+    profile_set = set(profile_tags)
+    candidates: List[Tuple[int, int, Dict[str, Any], List[str]]] = []  # (命中数, 原始索引, 课程dict, 命中标签列表)
+
+    for idx, course in enumerate(course_library):
+        course_tags = course.get("适合的学情画像标签", [])
+        if not isinstance(course_tags, list):
+            # 容错：非列表类型尝试转为列表
+            course_tags = [course_tags] if course_tags else []
+        course_tag_set = set(course_tags)
+
+        # 计算命中标签（交集）
+        matched_tags = list(profile_set & course_tag_set)
+        if not matched_tags:
+            continue
+
+        hit_count = len(matched_tags)
+        candidates.append((hit_count, idx, course, matched_tags))
+
+    if not candidates:
+        return []
+
+    # 按命中数降序排序，命中数相同按原始索引升序（稳定排序）
+    candidates.sort(key=lambda x: (-x[0], x[1]))
+
+    # 取Top 3，构建返回结果（附加"匹配标签"字段）
+    result: List[Dict[str, Any]] = []
+    for _, _, course, matched_tags in candidates[:3]:
+        course_item: Dict[str, Any] = {
+            "课程名": course.get("课程名", ""),
+            "核心卖点": course.get("核心卖点", []),
+            "当前开班数": course.get("当前开班数", 0),
+            "匹配标签": matched_tags,
+        }
+        result.append(course_item)
+
+    return result
+
+
+def generate_course_recommendation(student: Dict[str, Any],
+                                   course_library: List[Dict[str, Any]],
+                                   profile_course_map: Dict[str, str]) -> Dict[str, Any]:
+    """生成课程推荐（升级版，支持课程级和方向级降级）。
+
+    逻辑：
+    1. 调用 calculate_student_profile 获取学情画像标签
+    2. 调用 match_course_products 匹配课程产品库
+    3. 有匹配 → 返回课程级推荐（课程名+卖点+开班数+话术）
+    4. 无匹配/课程库为空 → 降级为 PROFILE_COURSE_MAP 方向级推荐
+
+    Args:
+        student: 学员记录（含学情画像相关字段）
+        course_library: 课程产品库
+        profile_course_map: 画像→方向映射（降级用，即现有的PROFILE_COURSE_MAP）
+
+    Returns:
+        {
+            "推荐类型": "course_level" / "direction_level",
+            "推荐课程": [{"课程名": "...", "核心卖点": [...], "当前开班数": N, "匹配标签": [...]}],  # course_level时
+            "推荐方向": "C++/信奥课程",  # direction_level时
+            "话术建议": "..."  # course_level时附带，基于第一门匹配课程的卖点生成
+        }
+    """
+    # 1. 获取学情画像标签
+    profile_tags = calculate_student_profile(student)
+
+    # 2. 课程库为空 → 降级为方向级推荐
+    if not course_library:
+        # 取第一个画像标签对应的方向
+        direction = "待配置"
+        if profile_tags:
+            direction = profile_course_map.get(profile_tags[0], "待配置")
+        return {
+            "推荐类型": "direction_level",
+            "推荐方向": direction,
+            "话术建议": f"根据画像「{'、'.join(profile_tags) if profile_tags else '未知'}」推荐方向：{direction}",
+        }
+
+    # 3. 调用 match_course_products 匹配课程产品库
+    matched_courses = match_course_products(profile_tags, course_library)
+
+    # 4. 有匹配 → 课程级推荐
+    if matched_courses:
+        # 话术建议基于第一门课的核心卖点拼接
+        first_course = matched_courses[0]
+        selling_points = first_course.get("核心卖点", [])
+        if selling_points:
+            points_text = "、".join(str(p) for p in selling_points)
+            话术建议 = f"推荐「{first_course['课程名']}」，核心优势：{points_text}，当前{first_course.get('当前开班数', 0)}个班在招。"
+        else:
+            话术建议 = f"推荐「{first_course['课程名']}」，当前{first_course.get('当前开班数', 0)}个班在招。"
+
+        return {
+            "推荐类型": "course_level",
+            "推荐课程": matched_courses,
+            "话术建议": 话术建议,
+        }
+
+    # 5. 无匹配 → 降级为方向级推荐
+    direction = "待配置"
+    if profile_tags:
+        direction = profile_course_map.get(profile_tags[0], "待配置")
+    return {
+        "推荐类型": "direction_level",
+        "推荐方向": direction,
+        "话术建议": f"课程库中暂无完全匹配课程，根据画像「{'、'.join(profile_tags) if profile_tags else '未知'}」推荐方向：{direction}",
+    }
+
+
 def format_three_way_conflict(consultant_val: str, teacher_val: str,
                               principal_val: str = "") -> str:
     """格式化三路信源冲突为Excel单元格内三值格式。
@@ -1286,11 +1435,13 @@ if __name__ == "__main__":
 
     print("\n=== 列数验证 ===")
     print(f"SUMMARY_COLUMNS 长度: {len(SUMMARY_COLUMNS)}")
-    assert len(SUMMARY_COLUMNS) == 54, f"SUMMARY_COLUMNS应为54列, 实际{len(SUMMARY_COLUMNS)}"
+    assert len(SUMMARY_COLUMNS) == 55, f"SUMMARY_COLUMNS应为55列, 实际{len(SUMMARY_COLUMNS)}"
     print(f"CONSULTANT_COLUMNS 长度: {len(CONSULTANT_COLUMNS)}")
-    assert len(CONSULTANT_COLUMNS) == 23, f"CONSULTANT_COLUMNS应为23列, 实际{len(CONSULTANT_COLUMNS)}"
+    assert len(CONSULTANT_COLUMNS) == 24, f"CONSULTANT_COLUMNS应为24列, 实际{len(CONSULTANT_COLUMNS)}"
     print(f"TEACHER_COLUMNS 长度: {len(TEACHER_COLUMNS)}")
     assert len(TEACHER_COLUMNS) == 31, f"TEACHER_COLUMNS应为31列, 实际{len(TEACHER_COLUMNS)}"
+    print(f"B2_FIELDS 长度: {len(B2_FIELDS)}")
+    assert len(B2_FIELDS) == 9, f"B2_FIELDS应为9字段, 实际{len(B2_FIELDS)}"
 
     # 验证 create_empty_student_record 新增字段
     print("\n=== create_empty_student_record 验证 ===")
@@ -1298,8 +1449,89 @@ if __name__ == "__main__":
     assert "销售漏斗" in rec, "record应含'销售漏斗'"
     assert "学情履历" in rec, "record应含'学情履历'"
     assert "家庭背景_老师补充" in rec, "record应含'家庭背景_老师补充'"
-    assert len(rec["销售漏斗"]) == 8, f"销售漏斗应有8字段, 实际{len(rec['销售漏斗'])}"
+    assert len(rec["销售漏斗"]) == 9, f"销售漏斗应有9字段, 实际{len(rec['销售漏斗'])}"
     assert len(rec["学情履历"]) == 13, f"学情履历应有13字段, 实际{len(rec['学情履历'])}"
+    assert "顾问侧续费历史" in rec["销售漏斗"], "销售漏斗应含'顾问侧续费历史'"
     print("create_empty_student_record 验证通过")
+
+    # ===== v1.7.0 新增自测：课程产品库匹配与推荐 =====
+
+    # 测试 match_course_products — 命中匹配
+    print("\n=== match_course_products 测试 ===")
+    test_library_hit = [
+        {"课程名": "C++班", "适合的学情画像标签": ["竞赛冲刺型"], "核心卖点": ["竞赛冲刺", "CSP认证"], "当前开班数": 3},
+    ]
+    result_hit = match_course_products(["竞赛冲刺型"], test_library_hit)
+    print(f"命中测试: {result_hit}")
+    assert len(result_hit) == 1, f"应返回1门课, 实际{len(result_hit)}"
+    assert result_hit[0]["课程名"] == "C++班", f"课程名应为C++班, 实际{result_hit[0]['课程名']}"
+    assert "竞赛冲刺型" in result_hit[0]["匹配标签"], f"匹配标签应含竞赛冲刺型"
+    print("match_course_products 命中测试通过")
+
+    # 测试 match_course_products — 无匹配返回空列表
+    result_miss = match_course_products(["兴趣探索型"], test_library_hit)
+    print(f"无匹配测试: {result_miss}")
+    assert len(result_miss) == 0, f"无匹配应返回空列表, 实际{len(result_miss)}"
+    print("match_course_products 无匹配测试通过")
+
+    # 测试 match_course_products — 多标签命中数排序
+    multi_library = [
+        {"课程名": "C++班", "适合的学情画像标签": ["竞赛冲刺型"], "核心卖点": ["竞赛"], "当前开班数": 3},
+        {"课程名": "综合班", "适合的学情画像标签": ["竞赛冲刺型", "续费稳定型"], "核心卖点": ["竞赛", "续费"], "当前开班数": 2},
+    ]
+    result_multi = match_course_products(["竞赛冲刺型", "续费稳定型"], multi_library)
+    print(f"多标签排序测试: {result_multi}")
+    assert len(result_multi) == 2, f"应返回2门课, 实际{len(result_multi)}"
+    assert result_multi[0]["课程名"] == "综合班", f"命中数多的应排前, 实际第一门: {result_multi[0]['课程名']}"
+    assert len(result_multi[0]["匹配标签"]) == 2, f"综合班应命中2标签"
+    print("match_course_products 多标签排序测试通过")
+
+    # 测试 match_course_products — Top 3 截断
+    big_library = [
+        {"课程名": f"课程{i}", "适合的学情画像标签": ["竞赛冲刺型"], "核心卖点": [f"卖点{i}"], "当前开班数": i}
+        for i in range(1, 6)
+    ]
+    result_top3 = match_course_products(["竞赛冲刺型"], big_library)
+    print(f"Top3截断测试: 返回{len(result_top3)}门课")
+    assert len(result_top3) == 3, f"应截断为Top 3, 实际{len(result_top3)}"
+    print("match_course_products Top3截断测试通过")
+
+    # 测试 generate_course_recommendation — 课程级推荐
+    print("\n=== generate_course_recommendation 测试 ===")
+    student_course = {
+        "等级考": "机器人3级", "白名单比赛": "蓝桥杯2025",
+        "家长关注度": "群内回复:快|进班:经常进|疲态:无",
+    }
+    course_lib = [
+        {"课程名": "C++信奥班", "适合的学情画像标签": ["竞赛冲刺型"], "核心卖点": ["CSP-J/S认证", "竞赛冲刺"], "当前开班数": 3},
+    ]
+    rec_course = generate_course_recommendation(student_course, course_lib, PROFILE_COURSE_MAP)
+    print(f"课程级推荐: {rec_course}")
+    assert rec_course["推荐类型"] == "course_level", f"应返回course_level, 实际{rec_course['推荐类型']}"
+    assert len(rec_course["推荐课程"]) >= 1, f"应有推荐课程"
+    assert "话术建议" in rec_course, "应含话术建议"
+    print("generate_course_recommendation 课程级测试通过")
+
+    # 测试 generate_course_recommendation — 方向级降级（课程库为空）
+    rec_direction_empty = generate_course_recommendation(student_course, [], PROFILE_COURSE_MAP)
+    print(f"空库降级: {rec_direction_empty}")
+    assert rec_direction_empty["推荐类型"] == "direction_level", f"应返回direction_level, 实际{rec_direction_empty['推荐类型']}"
+    assert rec_direction_empty["推荐方向"] == "C++/信奥课程", f"竞赛冲刺型应降级为C++/信奥课程, 实际{rec_direction_empty['推荐方向']}"
+    print("generate_course_recommendation 空库降级测试通过")
+
+    # 测试 generate_course_recommendation — 方向级降级（课程库有课但无匹配）
+    no_match_lib = [
+        {"课程名": "兴趣班", "适合的学情画像标签": ["兴趣探索型"], "核心卖点": ["启蒙"], "当前开班数": 1},
+    ]
+    rec_direction_nomatch = generate_course_recommendation(student_course, no_match_lib, PROFILE_COURSE_MAP)
+    print(f"无匹配降级: {rec_direction_nomatch}")
+    assert rec_direction_nomatch["推荐类型"] == "direction_level", f"应返回direction_level, 实际{rec_direction_nomatch['推荐类型']}"
+    print("generate_course_recommendation 无匹配降级测试通过")
+
+    # 测试 PROFILE_COURSE_MAP 在 utils.py 中可用
+    print("\n=== PROFILE_COURSE_MAP 可用性测试 ===")
+    assert PROFILE_COURSE_MAP["竞赛冲刺型"] == "C++/信奥课程", "竞赛冲刺型应映射为C++/信奥课程"
+    assert len(PROFILE_COURSE_MAP) == 8, f"PROFILE_COURSE_MAP应有8项, 实际{len(PROFILE_COURSE_MAP)}"
+    print("PROFILE_COURSE_MAP 可用性测试通过")
 
     print("\n[utils.py] 自测全部通过 ✓")

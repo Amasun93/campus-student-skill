@@ -3,10 +3,12 @@
 校区学员情况管理 Skill - 采集端导出脚本
 
 功能：读取采集端JSON缓存 → 生成个人学员表.xlsx
-- 顾问版：含A基础标识 + B1家庭背景 + B2销售漏斗 + E学员细节备注
-- 老师版：含A基础标识 + C在校情况 + D1课程成果 + D2学情履历 + E + B_cross_teacher
+- 顾问版：含A基础标识 + B1家庭背景 + B2销售漏斗(含B2.09顾问侧续费历史) + E学员细节备注 = 24列
+- 老师版：含A基础标识 + C在校情况 + D1课程成果 + D2学情履历 + E + B_cross_teacher = 31列
 - 老师版D2.03当前年级/D2.04在读时长自动计算填充
 - 含采集完成率sheet
+
+v1.7.0: B2.09顾问侧续费历史自动随B2_FIELDS扩展，顾问版24列。
 
 用法：
     python scripts/export_student_xlsx.py --input <JSON缓存路径> --output <xlsx输出路径>

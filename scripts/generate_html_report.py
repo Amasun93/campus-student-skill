@@ -10,7 +10,13 @@
 - 页2：校区分析报告（高净值占比/小区分布/学校层次分布/决策标签分布
        + 渠道来源分布/新签阶段漏斗/学情画像标签分布/流失风险预警/高净值待挖）
 - 页3：产品推荐画像（推荐课程分布+百分比+画像筛选
-       + 按学情画像分组推荐/按等级考路径推荐/按家长关注度推荐）
+       + 按学情画像分组推荐/按等级考路径推荐/按家长关注度推荐
+       + 课程级精准推荐 v1.7.0新增）
+
+v1.7.0：
+- PROFILE_COURSE_MAP 从 utils.py 统一导入
+- 学员列表新增"顾问侧续费历史"字段
+- 课程产品库有数据时生成课程级精准推荐统计，无数据时降级为方向级推荐
 
 用法：
     python scripts/generate_html_report.py --input <带标签汇总表.xlsx> --output <报告.html> --config <校区配置.json>
@@ -28,20 +34,13 @@ from typing import Any, Dict, List
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
     SUMMARY_COLUMNS, PROFILE_TAGS, PROFILE_TAG_PRIORITY,
+    PROFILE_COURSE_MAP,
+    match_course_products, generate_course_recommendation,
     get_timestamp, print_script_result,
 )
 
-# 学情画像标签→推荐课程方向映射
-PROFILE_COURSE_MAP = {
-    "竞赛冲刺型": "C++/信奥课程",
-    "高净值待挖型": "研学/VEX",
-    "兴趣探索型": "Scratch/机器人入门",
-    "科创潜力型": "机器人进阶/科创项目",
-    "续费稳定型": "进阶课程/续费",
-    "流失风险型": "体验课重新激活",
-    "谨慎观望型": "深度解答/试听",
-    "基础夯实型": "等级考培训",
-}
+# v1.7.0：PROFILE_COURSE_MAP 已移至 utils.py 作为唯一定义源，此处保留引用供本模块使用
+# 学情画像标签→推荐课程方向映射（降级用，课程产品库为空或无匹配时使用）
 
 # 等级考级别→推荐方向映射
 EXAM_PATH_MAP = {
@@ -165,16 +164,20 @@ def parse_priority_to_int(priority_str: str) -> int:
         return 0
 
 
-def build_report_data(students: List[Dict[str, Any]], campus: str) -> Dict[str, Any]:
+def build_report_data(students: List[Dict[str, Any]], campus: str,
+                      course_library: List[Dict[str, Any]] = None) -> Dict[str, Any]:
     """构建HTML报告数据结构。
 
     Args:
         students: 学生记录列表
         campus: 校区名
+        course_library: 校区课程产品库（v1.7.0），为空时降级为方向级推荐
 
     Returns:
         报告数据字典（含学员列表和统计信息）
     """
+    if course_library is None:
+        course_library = []
     total = len(students)
 
     # 构建学员列表（精简字段用于前端展示）+ 新增B2/D2/B_cross字段
@@ -195,6 +198,7 @@ def build_report_data(students: List[Dict[str, Any]], campus: str) -> Dict[str, 
             # B2销售漏斗字段
             "客户来源": s.get("客户来源", ""),
             "当前阶段": s.get("当前阶段", ""),
+            "顾问侧续费历史": s.get("顾问侧续费历史", ""),
             # D2学情履历字段
             "学情画像": s.get("学情画像", ""),
             "入学时间": s.get("入学时间", ""),
@@ -377,6 +381,55 @@ def build_report_data(students: List[Dict[str, Any]], campus: str) -> Dict[str, 
             "学员数": len(attention_groups[level]),
         })
 
+    # 4. 课程级精准推荐统计（v1.7.0新增）
+    #    课程产品库有数据时，对每个学员调用 generate_course_recommendation，
+    #    统计每门课程被推荐了几次、推荐了哪些学员
+    course_level_recommend: List[Dict[str, Any]] = []
+    if course_library:
+        # 课程名→推荐学员名单 的映射
+        course_student_map: Dict[str, List[str]] = {}
+        # 课程名→课程信息 的映射（从课程库取核心卖点、开班数）
+        course_info_map: Dict[str, Dict[str, Any]] = {}
+        for course in course_library:
+            cname = course.get("课程名", "")
+            if cname:
+                course_info_map[cname] = course
+                course_student_map.setdefault(cname, [])
+
+        # 遍历学员，调用 generate_course_recommendation
+        for s in students:
+            rec_result = generate_course_recommendation(s, course_library, PROFILE_COURSE_MAP)
+            if rec_result.get("推荐类型") == "course_level":
+                matched_courses = rec_result.get("推荐课程", [])
+                for mc in matched_courses:
+                    cname = mc.get("课程名", "")
+                    if cname and cname in course_student_map:
+                        student_name = s.get("姓名", "")
+                        if student_name and student_name not in course_student_map[cname]:
+                            course_student_map[cname].append(student_name)
+
+        # 构建统计列表（仅包含有推荐学员的课程）
+        for course in course_library:
+            cname = course.get("课程名", "")
+            if not cname:
+                continue
+            recommend_students = course_student_map.get(cname, [])
+            if not recommend_students:
+                continue
+            selling_points = course.get("核心卖点", [])
+            if not isinstance(selling_points, list):
+                selling_points = [selling_points] if selling_points else []
+            course_level_recommend.append({
+                "课程名": cname,
+                "核心卖点": selling_points,
+                "当前开班数": course.get("当前开班数", 0),
+                "推荐学员数": len(recommend_students),
+                "推荐学员名单": recommend_students,
+            })
+
+        # 按推荐学员数降序排序
+        course_level_recommend.sort(key=lambda x: -x["推荐学员数"])
+
     # 组装报告数据
     report_data = {
         "生成时间": get_timestamp(),
@@ -401,6 +454,8 @@ def build_report_data(students: List[Dict[str, Any]], campus: str) -> Dict[str, 
             "按学情画像分组推荐": profile_recommend,
             "按等级考路径推荐": exam_path_recommend,
             "按家长关注度推荐": attention_recommend,
+            # v1.7.0新增：课程级精准推荐（课程产品库有数据时，否则为空列表→降级方向级）
+            "课程级推荐": course_level_recommend,
         }
     }
 
@@ -457,10 +512,15 @@ def main():
 
     # 读取配置（可选）
     campus = ""
+    course_library: List[Dict[str, Any]] = []
     if args.config and os.path.exists(args.config):
         with open(args.config, "r", encoding="utf-8") as f:
             config = json.load(f)
         campus = config.get("校区", "")
+        # v1.7.0：读取课程产品库（可选，为空时降级为方向级推荐）
+        course_library = config.get("课程产品库", [])
+        if not isinstance(course_library, list):
+            course_library = []
 
     # 读取汇总表
     students = read_tagged_xlsx(args.input)
@@ -473,7 +533,7 @@ def main():
         campus = students[0].get("校区", "未知校区")
 
     # 构建报告数据
-    report_data = build_report_data(students, campus)
+    report_data = build_report_data(students, campus, course_library)
 
     # 查找HTML模板
     script_dir = os.path.dirname(os.path.abspath(__file__))
